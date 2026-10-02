@@ -70,6 +70,8 @@ model User {
   name         String
   passwordHash String
   role         Role     @default(USER)
+  /// Bumped on password change; tokens issued before that stop working.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   cart         CartItem[]
   wishlist     WishlistItem[]
