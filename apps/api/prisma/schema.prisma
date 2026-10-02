@@ -37,9 +37,21 @@ model Product {
   colorId     Int
   color       Color    @relation(fields: [colorId], references: [id])
   tags        Tag[]
+  images      ProductImage[]
   createdAt   DateTime @default(now())
 
   @@index([category])
   @@index([price])
   @@index([colorId])
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  url       String
+  alt       String
+  position  Int     @default(0)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position])
 }

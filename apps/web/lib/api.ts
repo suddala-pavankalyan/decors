@@ -1,7 +1,10 @@
+export interface ProductImage { url: string; alt: string }
 export interface Product {
   id: string; name: string; category: string; price: number;
   color: string; colorName: string; tags: string[]; rating: number; description: string;
+  image: ProductImage | null;
 }
+export interface ProductDetail extends Product { images: ProductImage[]; related: Product[] }
 export interface Facets {
   categories: string[]; colors: { name: string; hex: string }[]; tags: string[]; maxPrice: number;
 }
@@ -25,5 +28,12 @@ export async function fetchProducts(f: Filters): Promise<{ total: number; items:
   p.set('maxPrice', String(f.maxPrice));
   if (f.sort) p.set('sort', f.sort);
   const r = await fetch(`${API}/products?${p}`, { cache: 'no-store' });
+  return r.json();
+}
+
+export async function fetchProduct(id: string): Promise<ProductDetail | null> {
+  const r = await fetch(`${API}/products/${encodeURIComponent(id)}`, { cache: 'no-store' });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('Failed to load product');
   return r.json();
 }

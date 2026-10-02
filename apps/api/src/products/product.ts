@@ -11,3 +11,17 @@ export interface Product {
   rating: number;
   description: string;
 }
+
+export interface ProductImage {
+  url: string;
+  alt: string;
+}
+
+export interface ProductSummary extends Product {
+  image: ProductImage | null;
+}
+
+export interface ProductDetail extends Product {
+  images: ProductImage[];
+  related: ProductSummary[];
+}
