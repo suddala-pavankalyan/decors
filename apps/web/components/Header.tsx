@@ -1,6 +1,8 @@
 'use client';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAuth } from '@/lib/auth';
 import { useHydrated, useStore } from '@/lib/store';
 
 function Badge({ n }: { n: number }) {
@@ -25,6 +27,8 @@ export default function Header() {
   const hydrated = useHydrated();
   const cartCount = useStore((s) => s.cart.reduce((n, l) => n + l.qty, 0));
   const wishCount = useStore((s) => s.wishlist.length);
+  const { user, ready, init, logout } = useAuth();
+  useEffect(() => { init(); }, [init]);
   return (
     <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
       <Link href="/" className="font-display text-xl font-bold">Decors</Link>
@@ -35,6 +39,14 @@ export default function Header() {
         <Link href="/cart" className="relative hover:text-fuchsia-600">
           🛒 Cart<Badge n={hydrated ? cartCount : 0} />
         </Link>
+        {ready && (user ? (
+          <span className="flex items-center gap-3">
+            <span className="text-slate-600">Hi, {user.name.split(' ')[0]}</span>
+            <button type="button" onClick={logout} className="hover:text-fuchsia-600">Log out</button>
+          </span>
+        ) : (
+          <Link href="/login" className="rounded-full bg-fuchsia-500 px-4 py-1.5 text-white hover:bg-fuchsia-600">Log in</Link>
+        ))}
       </div>
     </nav>
   );

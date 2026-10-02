@@ -9,12 +9,14 @@ Marketplace for wedding cards, gift cards, wall decor and paints.
 ```
 docker compose up -d                       # Postgres on :5432
 npm install
-cp apps/api/.env.example apps/api/.env
+cp apps/api/.env.example apps/api/.env      # then set JWT_SECRET (the API refuses to start with the placeholder)
 npm run db:migrate -w apps/api             # create tables
 npm run db:seed -w apps/api                # sample products
 npm run dev:api   # http://localhost:4000
 npm run dev:web   # http://localhost:3000
 ```
+
+Accounts: email + password (bcrypt), JWT in an httpOnly cookie. Endpoints: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. Login/register are rate-limited.
 
 Cart and wishlist live in the browser (localStorage) until accounts exist.
 
