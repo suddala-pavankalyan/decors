@@ -2,7 +2,11 @@ module.exports = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      fontFamily: { display: ['Georgia', 'serif'] },
+      // One family everywhere. `--font-inter` (set in app/layout.tsx) already ends with the backup fonts;
+      // the explicit list below is a second safety net.
+      fontFamily: {
+        sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+      },
       backgroundImage: {
         // Brand gradient: sunset orange -> magenta -> purple
         spectrum: 'linear-gradient(90deg,#fa7e1e,#d62976,#962fbf)',

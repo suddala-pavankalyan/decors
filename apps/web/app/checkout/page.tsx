@@ -87,7 +87,7 @@ export default function CheckoutPage() {
   if (paidOrder) {
     return (
       <main className="mx-auto max-w-md p-10 text-center">
-        <h1 className="font-display text-2xl font-bold">We’re confirming your payment</h1>
+        <h1 className="text-2xl font-bold">We’re confirming your payment</h1>
         <p className="mt-3 text-slate-600">
           We couldn’t confirm it right away. If you were charged, your order will show as paid in a moment.
         </p>
@@ -99,7 +99,7 @@ export default function CheckoutPage() {
   return (
     <main className="mx-auto grid max-w-5xl gap-8 px-4 pb-16 md:grid-cols-[1fr_320px]">
       <form onSubmit={pay} className="space-y-4 rounded-3xl bg-white/80 p-6 shadow-xl">
-        <h1 className="font-display text-3xl font-bold">Delivery details</h1>
+        <h1 className="text-3xl font-bold">Delivery details</h1>
         <label className="block text-sm font-medium">Full name
           <input className={input} value={addr.name} onChange={set('name')} required maxLength={80} autoComplete="name" />
         </label>
@@ -139,12 +139,12 @@ export default function CheckoutPage() {
           {cart.map((l) => (
             <li key={l.id} className="flex justify-between gap-3">
               <span className="truncate">{l.name} × {l.qty}</span>
-              <span>{rupees(l.price * l.qty)}</span>
+              <span className="tabular-nums">{rupees(l.price * l.qty)}</span>
             </li>
           ))}
         </ul>
         <div className="mt-4 flex justify-between border-t pt-3 font-bold">
-          <span>Total</span><span>{rupees(subtotal)}</span>
+          <span>Total</span><span className="tabular-nums">{rupees(subtotal)}</span>
         </div>
         <p className="mt-2 text-xs text-slate-500">The final amount is confirmed by our server at payment time.</p>
       </aside>

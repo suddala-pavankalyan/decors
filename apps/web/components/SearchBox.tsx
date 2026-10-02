@@ -123,7 +123,7 @@ export default function SearchBox({
                             <span className="block truncate text-sm font-medium">{p.name}</span>
                             <span className="block text-xs capitalize text-slate-500">{p.category.replace('-', ' ')}</span>
                           </span>
-                          <span className="text-sm font-semibold">{rupees(p.price)}</span>
+                          <span className="text-sm font-semibold tabular-nums">{rupees(p.price)}</span>
                         </Link>
                       </li>
                     ))}

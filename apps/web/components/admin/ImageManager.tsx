@@ -60,7 +60,7 @@ export default function ImageManager({
   return (
     <section aria-label="Photos" className="rounded-3xl bg-white/80 p-6 shadow-xl">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-display text-2xl font-bold">Photos</h2>
+        <h2 className="text-2xl font-bold">Photos</h2>
         <span className="text-sm text-slate-500">{images.length} of {MAX_IMAGES}</span>
       </div>
       <p className="mt-1 text-sm text-slate-500">The first photo is the main one shown in the catalog. JPEG, PNG or WebP, up to 5 MB each.</p>

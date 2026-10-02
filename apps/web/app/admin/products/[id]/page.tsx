@@ -32,7 +32,7 @@ function Editor() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 pb-16">
       {back}
-      <h1 className="font-display text-3xl font-bold">{isNew ? 'New product' : 'Edit product'}</h1>
+      <h1 className="text-3xl font-bold">{isNew ? 'New product' : 'Edit product'}</h1>
 
       <ProductForm
         initial={product ?? undefined}

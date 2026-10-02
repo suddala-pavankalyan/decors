@@ -19,7 +19,7 @@ export default function OrdersPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-16">
-      <h1 className="font-display text-3xl font-bold">Your orders</h1>
+      <h1 className="text-3xl font-bold">Your orders</h1>
       {error && <p role="alert" className="mt-4 text-rose-600">{error}</p>}
       {orders && orders.length === 0 && <p className="mt-8 text-center text-slate-500">No orders yet.</p>}
       <ul className="mt-6 space-y-3">
@@ -31,7 +31,7 @@ export default function OrdersPage() {
                 <p className="text-sm text-slate-500">{new Date(o.createdAt).toLocaleDateString('en-IN')} · {o.items.length} item{o.items.length > 1 ? 's' : ''}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold">{fromPaise(o.amount)}</p>
+                <p className="font-bold tabular-nums">{fromPaise(o.amount)}</p>
                 <span className={`text-xs font-semibold ${o.status === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
                   {o.status === 'PAID' ? 'Paid' : 'Awaiting payment'}
                 </span>

@@ -4,6 +4,30 @@
 
 body { @apply min-h-screen bg-gradient-to-br from-rose-50 via-amber-50 to-sky-50 text-slate-800; }
 
+/*
+ * Typography: a single family (Inter), with the "design" coming from context rather than from mixing fonts.
+ *   display / h1   extra-bold, tight tracking, tight leading   (hero, page titles)
+ *   h2             bold, slightly tight                         (section titles)
+ *   h3, h4         semibold                                     (card and panel titles)
+ *   body           regular, 16px / 1.6                          (paragraphs)
+ *   labels, buttons medium–semibold, 14px                       (UI)
+ *   eyebrows       semibold, 12px, uppercase, wide tracking     (small section labels)
+ *   prices, counts tabular figures (class `tabular-nums`)       (digits line up)
+ */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-optical-sizing: auto;          /* Inter switches to its sharper "display" cut at large sizes */
+    text-rendering: optimizeLegibility;
+    line-height: 1.6;
+  }
+  h1 { letter-spacing: -0.026em; line-height: 1.08; }
+  h2 { letter-spacing: -0.018em; line-height: 1.15; }
+  h3, h4 { letter-spacing: -0.01em; line-height: 1.3; }
+  /* Inputs, buttons and selects should look like the rest of the page. */
+  button, input, select, textarea { font-family: inherit; }
+}
+
 /* Brand gradient on text. */
 .text-spectrum {
   @apply bg-spectrum bg-clip-text text-transparent;

@@ -65,3 +65,18 @@ Notes
   npm run start:api
   npm run start:web
   ```
+
+## Typography
+One typeface for the whole site: **Inter** (bundled in `apps/web/app/fonts`, so builds work offline and visitors never contact a third party). If it can't load, the visitor's own system UI font takes over (Segoe UI on Windows, San Francisco on Apple devices, Roboto on Android), then plain sans-serif; a size-matched fallback keeps the page from jumping while Inter loads.
+
+The look changes with context through weight, size and spacing, not by mixing fonts (see the comment at the top of `apps/web/app/globals.css`):
+
+| Context | Style |
+| --- | --- |
+| Hero / page title (`h1`) | extra-bold, tight tracking |
+| Section title (`h2`) | bold |
+| Card and panel titles (`h3`, `h4`) | semibold |
+| Body text | regular, 16px / 1.6 |
+| Buttons and labels | medium to semibold, 14px |
+| Small section labels | semibold, 12px, uppercase, wide tracking |
+| Prices and counts | tabular figures (`tabular-nums`) so digits line up |
