@@ -38,6 +38,7 @@ export default function Header() {
         Decors
       </Link>
       <div className="flex items-center gap-4 text-sm font-medium sm:gap-6">
+        <Link href="/shop" className="hover:text-fuchsia-600">Shop</Link>
         <Link href="/wishlist" aria-label="Wishlist" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
           <span className="relative"><Icon name="heart" size={20} /><Badge n={hydrated ? wishCount : 0} /></span>
           <span className="hidden sm:inline">Wishlist</span>

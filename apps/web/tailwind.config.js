@@ -3,13 +3,9 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: { display: ['Georgia', 'serif'] },
-      colors: {
-        // Dark "ink" surface for the hero, in the family of AWS's squid-ink navy.
-        ink: { 900: '#0f1626', 800: '#161e2d', 700: '#232f3e' },
-      },
       backgroundImage: {
-        // Instagram-style spectrum: amber -> orange -> magenta -> purple -> indigo
-        spectrum: 'linear-gradient(90deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)',
+        // Brand gradient: sunset orange -> magenta -> purple
+        spectrum: 'linear-gradient(90deg,#fa7e1e,#d62976,#962fbf)',
       },
       keyframes: {
         float: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-12px)' } },

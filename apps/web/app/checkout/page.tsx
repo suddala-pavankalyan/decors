@@ -35,7 +35,7 @@ export default function CheckoutPage() {
     return (
       <main className="p-10 text-center text-slate-500">
         <p>Your cart is empty.</p>
-        <Link href="/" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
+        <Link href="/shop" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
       </main>
     );
   }

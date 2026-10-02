@@ -22,7 +22,7 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <Link href="/" className="text-sm text-fuchsia-600 hover:underline"><Icon name="back" size={16} className="mr-1 inline-block align-[-3px]" />All products</Link>
+      <Link href="/shop" className="text-sm text-fuchsia-600 hover:underline"><Icon name="back" size={16} className="mr-1 inline-block align-[-3px]" />All products</Link>
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <Gallery images={p.images} accent={p.color} />

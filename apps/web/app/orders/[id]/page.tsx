@@ -56,7 +56,7 @@ export default function OrderPage() {
         <p>{order.shipLine1}{order.shipLine2 ? `, ${order.shipLine2}` : ''}</p>
         <p>{order.shipCity}, {order.shipState} {order.shipPincode}</p>
       </section>
-      <Link href="/" className="mt-6 inline-block text-fuchsia-600 hover:underline">Continue shopping</Link>
+      <Link href="/shop" className="mt-6 inline-block text-fuchsia-600 hover:underline">Continue shopping</Link>
     </main>
   );
 }

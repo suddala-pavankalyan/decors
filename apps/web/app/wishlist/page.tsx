@@ -22,7 +22,7 @@ export default function WishlistPage() {
       {wishlist.length === 0 ? (
         <div className="mt-10 text-center text-slate-500">
           <p>Nothing saved yet — tap the heart on any product.</p>
-          <Link href="/" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
+          <Link href="/shop" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
         </div>
       ) : (
         <motion.div layout className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

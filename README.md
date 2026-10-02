@@ -51,3 +51,7 @@ Notes
 - Photos are stored on local disk in `apps/api/uploads` (`UPLOAD_DIR`) and served from the API at `/uploads/...`. Most hosts wipe local disk on redeploy, so for production move storage to S3 or Cloudinary (the code is isolated in `apps/api/src/uploads/image-storage.ts`).
 - Set `API_PUBLIC_URL` (API) and `NEXT_PUBLIC_API_URL` (web) to the API's public address when deploying.
 - Deleting a product removes it from carts and wishlists; past orders keep their item name and price.
+
+## Pages
+- `/` — the exhibition landing page: search (press Enter to open the results), the four category halls, the top-rated pieces, a colour wall and occasions.
+- `/shop` — the full collection with search, filters and sorting. Filters live in the URL (for example `/shop?categories=paints&sort=price-asc`), so results can be shared and survive a reload.

@@ -24,7 +24,7 @@ export default function CartPage() {
       {cart.length === 0 ? (
         <div className="mt-10 text-center text-slate-500">
           <p>Your cart is empty.</p>
-          <Link href="/" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
+          <Link href="/shop" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
         </div>
       ) : (
         <div className="mt-6 grid gap-6 md:grid-cols-[1fr_280px]">
