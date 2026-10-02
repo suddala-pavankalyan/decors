@@ -139,20 +139,15 @@ export default function ProfilePage() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 pb-16">
-      <section className="relative isolate overflow-hidden rounded-3xl bg-ink-800 p-6 text-white shadow-2xl shadow-fuchsia-900/20 sm:p-8">
-        <div aria-hidden className="absolute inset-0 -z-10">
-          <div className="absolute -left-16 -top-20 h-64 w-64 rounded-full bg-[#d62976]/50 blur-3xl" />
-          <div className="absolute -right-10 -top-16 h-64 w-64 rounded-full bg-[#4f5bd5]/50 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-[#fa7e1e]/35 blur-3xl" />
-        </div>
+      <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-xl shadow-fuchsia-900/5 sm:p-8">
         <div className="flex flex-wrap items-center gap-5">
           <Avatar name={user.name} size={72} />
           <div className="min-w-0">
             <h1 className="truncate font-display text-3xl font-bold">{user.name}</h1>
-            <p className="truncate text-slate-300">{user.email}</p>
+            <p className="truncate text-slate-500">{user.email}</p>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold backdrop-blur">{user.role === 'ADMIN' ? 'Admin' : 'Member'}</span>
-              <span className="text-slate-300">Member since {since}</span>
+              <span className="rounded-full bg-fuchsia-50 px-2.5 py-1 font-semibold text-fuchsia-700">{user.role === 'ADMIN' ? 'Admin' : 'Member'}</span>
+              <span className="text-slate-500">Member since {since}</span>
             </p>
           </div>
         </div>
