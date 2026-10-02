@@ -3,6 +3,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import type { Product } from '@/lib/api';
+import AddToCartButton from './AddToCartButton';
+import WishButton from './WishButton';
 
 export default function ProductCard({ p }: { p: Product }) {
   return (
@@ -26,6 +28,7 @@ export default function ProductCard({ p }: { p: Product }) {
         <span className="absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold capitalize">
           {p.category.replace('-', ' ')}
         </span>
+        <WishButton p={p} className="absolute right-3 top-3 z-10" />
         <span className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2 py-1 text-xs">★ {p.rating}</span>
       </div>
       <div className="p-4">
@@ -37,15 +40,10 @@ export default function ProductCard({ p }: { p: Product }) {
         <p className="mt-1 text-sm text-slate-500">{p.description}</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xl font-bold">${p.price}</span>
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
+          <AddToCartButton
+            p={p}
             className="relative z-10 rounded-full px-4 py-1.5 text-sm font-semibold text-white"
-            style={{ background: p.color }}
-          >
-            Add
-          </motion.button>
+          />
         </div>
       </div>
     </motion.article>

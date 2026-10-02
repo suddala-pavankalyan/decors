@@ -16,4 +16,6 @@ npm run dev:api   # http://localhost:4000
 npm run dev:web   # http://localhost:3000
 ```
 
+Cart and wishlist live in the browser (localStorage) until accounts exist.
+
 API: `GET /products?q=&categories=a,b&colors=Gold&tags=wedding&maxPrice=100&sort=price-asc|price-desc|rating`, `GET /products/facets`, `GET /products/:id` (with images + related).
