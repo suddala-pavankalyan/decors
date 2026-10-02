@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Request, Response } from 'express';
-import { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './auth.dto';
+import { ChangePasswordDto, ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto, UpdateProfileDto, VerifyEmailDto } from './auth.dto';
 import { AuthService } from './auth.service';
 import { COOKIE, JwtAuthGuard } from './jwt-auth.guard';
 
@@ -59,5 +59,27 @@ export class AuthController {
     const { user, token } = await this.auth.changePassword(req.userId, dto);
     res.cookie(COOKIE, token, cookieOptions());
     return user;
+  }
+
+  // ───── email verification ─────
+  @Post('verify-email') @HttpCode(200) @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto.token);
+  }
+
+  @Post('resend-verification') @HttpCode(200) @UseGuards(JwtAuthGuard) @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  resendVerification(@Req() req: Request & { userId: string }) {
+    return this.auth.resendVerification(req.userId);
+  }
+
+  // ───── password reset ─────
+  @Post('forgot-password') @HttpCode(200) @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password') @HttpCode(200) @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.newPassword);
   }
 }

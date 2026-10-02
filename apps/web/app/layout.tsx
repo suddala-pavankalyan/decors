@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import Header from '@/components/Header';
+import VerifyBanner from '@/components/VerifyBanner';
 
 // One typeface for the whole site: Inter. If it ever fails to load, the visitor's own system UI font
 // (Segoe UI on Windows, San Francisco on Apple devices, Roboto on Android) steps in, then plain sans-serif.
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body className="font-sans antialiased">
         <Header />
+        <VerifyBanner />
         {children}
       </body>
     </html>

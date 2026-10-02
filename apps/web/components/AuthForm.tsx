@@ -52,6 +52,11 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             autoComplete={isLogin ? 'current-password' : 'new-password'} />
           {!isLogin && <span className="mt-1 block text-xs text-slate-500">At least 8 characters.</span>}
         </label>
+        {isLogin && (
+          <p className="-mt-2 text-right text-sm">
+            <Link href="/forgot-password" className="text-fuchsia-600 hover:underline">Forgot password?</Link>
+          </p>
+        )}
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <motion.button whileTap={{ scale: 0.97 }} disabled={busy} type="submit"
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-2.5 font-semibold text-white disabled:opacity-60">

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import ResendVerification from '@/components/ResendVerification';
 import { startCheckout, verifyPayment, type Address } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { rupees } from '@/lib/money';
@@ -100,6 +101,12 @@ export default function CheckoutPage() {
     <main className="mx-auto grid max-w-5xl gap-8 px-4 pb-16 md:grid-cols-[1fr_320px]">
       <form onSubmit={pay} className="space-y-4 rounded-3xl bg-white/80 p-6 shadow-xl">
         <h1 className="text-3xl font-bold">Delivery details</h1>
+        {!user.emailVerified && (
+          <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <strong className="font-semibold">Confirm your email to pay.</strong> We sent a link to {user.email}; open it, then come back to this page.{' '}
+            <ResendVerification />
+          </div>
+        )}
         <label className="block text-sm font-medium">Full name
           <input className={input} value={addr.name} onChange={set('name')} required maxLength={80} autoComplete="name" />
         </label>
@@ -126,7 +133,7 @@ export default function CheckoutPage() {
           </label>
         </div>
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
-        <button type="submit" disabled={busy}
+        <button type="submit" disabled={busy || !user.emailVerified}
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-3 font-semibold text-white disabled:opacity-60">
           {busy ? 'Opening payment…' : `Pay ${rupees(subtotal)}`}
         </button>

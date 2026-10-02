@@ -80,3 +80,20 @@ The look changes with context through weight, size and spacing, not by mixing fo
 | Buttons and labels | medium to semibold, 14px |
 | Small section labels | semibold, 12px, uppercase, wide tracking |
 | Prices and counts | tabular figures (`tabular-nums`) so digits line up |
+
+## Email: password reset and email verification
+- **Sign up** sends a confirmation email. People can browse and log in without confirming, but **placing an order requires a confirmed email**. A banner (and the profile page) offers "Resend email".
+- **Forgot password** (`/forgot-password`) emails a one-hour, single-use link to `/reset-password`. Resetting signs the person out of every device, confirms their email, and sends a "your password was changed" notice. The page answers the same way whether or not the address has an account.
+- Links contain a random token; only its SHA-256 hash is stored. Confirmation links last 24 hours. A new link replaces the previous one, and a new email for the same account can be requested once a minute.
+- Endpoints: `POST /auth/verify-email`, `POST /auth/resend-verification`, `POST /auth/forgot-password`, `POST /auth/reset-password`.
+
+### Reading the emails in development
+`docker compose up -d` also starts **Mailpit**, a local inbox. The API sends to it (settings are already in `.env.example`), and you read the messages at **http://localhost:8025**. Without any `SMTP_HOST`, the API instead prints each email, including its link, in the API console.
+
+### Real email in production
+Set these in the API's environment (any SMTP provider works: Amazon SES, SendGrid, Mailgun, Brevo, a Gmail app password...):
+```
+SMTP_HOST=...   SMTP_PORT=587   SMTP_USER=...   SMTP_PASS=...   SMTP_SECURE=false   MAIL_FROM="Decors <no-reply@yourdomain.com>"
+WEB_ORIGIN=https://www.yourdomain.com     # the links in emails point here
+```
+In production (`NODE_ENV=production`) the API never prints emails: without `SMTP_HOST` it logs an error instead, because a reset link in a log file would be a security risk. Set up SPF/DKIM for your sending domain so the emails don't land in spam.

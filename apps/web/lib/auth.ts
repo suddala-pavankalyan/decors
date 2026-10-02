@@ -4,7 +4,7 @@ import { API } from '@/lib/api';
 import * as account from '@/lib/account';
 import { useStore } from '@/lib/store';
 
-export interface User { id: string; email: string; name: string; role: 'USER' | 'ADMIN'; createdAt: string }
+export interface User { id: string; email: string; name: string; role: 'USER' | 'ADMIN'; createdAt: string; emailVerified: boolean }
 
 interface AuthState {
   user: User | null;
@@ -16,6 +16,12 @@ interface AuthState {
   logout: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Email links. Each throws an Error with a message that is safe to show. */
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  /** Returns true if a new email was sent, false if the address was already verified. */
+  resendVerification: () => Promise<boolean>;
 }
 
 async function call(
@@ -54,15 +60,28 @@ async function syncAccount(userId: string) {
   }
 }
 
-async function readUser(res: Response): Promise<User> {
-  if (res.ok) return res.json();
+async function errorMessage(res: Response): Promise<string> {
   let msg = 'Something went wrong';
+  let raw = '';
   try {
     const j = await res.json();
-    msg = Array.isArray(j.message) ? j.message.join('. ') : j.message ?? msg;
+    raw = Array.isArray(j.message) ? j.message.join('. ') : j.message ?? '';
+    if (raw) msg = raw;
   } catch {}
-  if (res.status === 429) msg = 'Too many attempts. Please wait a minute and try again.';
-  throw new Error(msg);
+  // The generic rate limiter has an unfriendly message; our own "please wait" messages are already clear.
+  if (res.status === 429 && (!raw || /throttler/i.test(raw))) msg = 'Too many attempts. Please wait a minute and try again.';
+  return msg;
+}
+
+async function readUser(res: Response): Promise<User> {
+  if (res.ok) return res.json();
+  throw new Error(await errorMessage(res));
+}
+
+async function send<T = unknown>(path: string, body: unknown = {}): Promise<T> {
+  const res = await call(path, body);
+  if (!res.ok) throw new Error(await errorMessage(res));
+  return res.json();
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -97,4 +116,12 @@ export const useAuth = create<AuthState>((set) => ({
   // The server signs out every other device and re-issues this one's cookie.
   changePassword: async (currentPassword, newPassword) =>
     set({ user: await readUser(await call('change-password', { currentPassword, newPassword })) }),
+  forgotPassword: async (email) => { await send('forgot-password', { email }); },
+  resetPassword: async (token, newPassword) => { await send('reset-password', { token, newPassword }); },
+  verifyEmail: async (token) => {
+    await send('verify-email', { token });
+    // If they are signed in, the "please confirm your email" banner should disappear.
+    set((s) => (s.user ? { user: { ...s.user, emailVerified: true } } : s));
+  },
+  resendVerification: async () => !(await send<{ alreadyVerified: boolean }>('resend-verification')).alreadyVerified,
 }));

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Icon, { type IconName } from '@/components/Icon';
+import ResendVerification from '@/components/ResendVerification';
 import { Avatar } from '@/components/UserMenu';
 import { useAuth } from '@/lib/auth';
 import { useHydrated, useStore } from '@/lib/store';
@@ -56,6 +57,13 @@ function NameForm() {
         <input className={field} value={user?.email ?? ''} disabled readOnly />
         <span className="mt-1 block text-xs font-normal text-slate-500">Your email is your login, so it can’t be changed here.</span>
       </label>
+      {user?.emailVerified ? (
+        <p className="flex items-center gap-2 text-sm font-medium text-emerald-700"><Icon name="check" size={18} />Email confirmed</p>
+      ) : (
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <strong className="font-semibold">Email not confirmed yet.</strong> We sent a link to {user?.email}. <ResendVerification />
+        </p>
+      )}
       <Notice error={error} ok={ok} />
       <button type="submit" disabled={busy || unchanged || !name.trim()}
         className="rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-40">

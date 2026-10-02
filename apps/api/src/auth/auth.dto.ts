@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsString, Length, MaxLength, MinLength } from 'class-validator';
 
 const trimLower = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
@@ -36,4 +36,22 @@ export class ChangePasswordDto {
 
   @IsString() @MinLength(8) @MaxLength(72)
   newPassword: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail() @MaxLength(254) @Transform(trimLower)
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString() @Length(20, 200)
+  token: string;
+
+  @IsString() @MinLength(8) @MaxLength(72)
+  newPassword: string;
+}
+
+export class VerifyEmailDto {
+  @IsString() @Length(20, 200)
+  token: string;
 }
