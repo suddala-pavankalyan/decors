@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { fetchOrder, type Order } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { fromPaise } from '@/lib/money';
+import Icon from '@/components/Icon';
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +38,7 @@ export default function OrderPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">
       <div className={`rounded-3xl p-6 text-center ${paid ? 'bg-emerald-50' : 'bg-amber-50'}`}>
-        <p className="text-4xl">{paid ? '🎉' : '⏳'}</p>
+        <Icon name={paid ? 'sparkle' : 'clock'} size={44} className={`mx-auto ${paid ? 'text-emerald-600' : 'text-amber-600'}`} />
         <h1 className="mt-2 font-display text-2xl font-bold">{paid ? 'Thank you! Your order is confirmed' : 'Waiting for payment confirmation'}</h1>
         <p className="mt-1 text-sm text-slate-600">Order {order.id}{order.razorpayPaymentId ? ` · Payment ${order.razorpayPaymentId}` : ''}</p>
       </div>

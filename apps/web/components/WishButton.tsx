@@ -2,6 +2,7 @@
 import { motion } from 'framer-motion';
 import type { Product } from '@/lib/api';
 import { useHydrated, useStore } from '@/lib/store';
+import Icon from './Icon';
 
 export default function WishButton({ p, className = '' }: { p: Product; className?: string }) {
   const hydrated = useHydrated();
@@ -16,9 +17,9 @@ export default function WishButton({ p, className = '' }: { p: Product; classNam
       onClick={() => toggle(p)}
       aria-pressed={on}
       aria-label={on ? 'Remove from wishlist' : 'Add to wishlist'}
-      className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-lg shadow ${className}`}
+      className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow ${className}`}
     >
-      <span className={on ? 'text-rose-500' : 'text-slate-400'}>{on ? '♥' : '♡'}</span>
+      <Icon name="heart" size={20} filled={on} className={on ? 'text-rose-500' : 'text-slate-500'} />
     </motion.button>
   );
 }

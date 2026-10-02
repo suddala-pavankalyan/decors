@@ -7,6 +7,7 @@ import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
 import { rupees } from '@/lib/money';
+import Icon from '@/components/Icon';
 
 type Props = { params: { id: string } };
 
@@ -21,7 +22,7 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <Link href="/" className="text-sm text-fuchsia-600 hover:underline">← All products</Link>
+      <Link href="/" className="text-sm text-fuchsia-600 hover:underline"><Icon name="back" size={16} className="mr-1 inline-block align-[-3px]" />All products</Link>
 
       <div className="mt-4 grid gap-8 lg:grid-cols-2">
         <Gallery images={p.images} accent={p.color} />
@@ -31,7 +32,9 @@ export default async function ProductPage({ params }: Props) {
             {p.category.replace('-', ' ')}
           </span>
           <h1 className="mt-3 font-display text-4xl font-bold">{p.name}</h1>
-          <p className="mt-2 text-amber-600">★ {p.rating}</p>
+          <p className="mt-2 text-amber-600">
+            <Icon name="star" size={18} filled className="mr-1 inline-block align-[-3px]" />{p.rating}
+          </p>
           <p className="mt-4 text-3xl font-bold">{rupees(p.price)}</p>
           <p className="mt-4 text-slate-600">{p.description}</p>
 
