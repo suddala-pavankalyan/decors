@@ -9,5 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+  # Local inbox for development: the API sends email here and you read it at http://localhost:8025
+  mail:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"   # SMTP (what the API connects to)
+      - "8025:8025"   # web inbox
 volumes:
   pgdata:

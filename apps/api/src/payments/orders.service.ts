@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddressDto } from './checkout.dto';
@@ -12,6 +12,10 @@ export class OrdersService {
 
   /** Build an order from the user's saved cart, priced from the database (never from the client). */
   async checkout(userId: string, addr: AddressDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { emailVerifiedAt: true } });
+    if (!user?.emailVerifiedAt) {
+      throw new ForbiddenException({ code: 'EMAIL_NOT_VERIFIED', message: 'Please confirm your email address before checking out. You can request a new email from your profile.' });
+    }
     const cart = await this.prisma.cartItem.findMany({ where: { userId }, include: { product: true } });
     if (cart.length === 0) throw new BadRequestException('Your cart is empty');
 

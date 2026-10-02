@@ -72,6 +72,9 @@ model User {
   role         Role     @default(USER)
   /// Bumped on password change; tokens issued before that stop working.
   tokenVersion Int      @default(0)
+  /// Set when the person proves they own the address (verification link, or a password-reset link).
+  emailVerifiedAt DateTime?
+  authTokens   AuthToken[]
   createdAt    DateTime @default(now())
   cart         CartItem[]
   wishlist     WishlistItem[]
@@ -138,4 +141,23 @@ model OrderItem {
   qty            Int
   order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+/// One-time links sent by email. Only a SHA-256 hash of the token is stored, never the token itself.
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
 }
