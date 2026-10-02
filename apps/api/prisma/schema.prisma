@@ -40,6 +40,7 @@ model Product {
   images      ProductImage[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
+  orderItems    OrderItem[]
   createdAt   DateTime @default(now())
 
   @@index([category])
@@ -66,6 +67,7 @@ model User {
   createdAt    DateTime @default(now())
   cart         CartItem[]
   wishlist     WishlistItem[]
+  orders       Order[]
 }
 
 model CartItem {
@@ -87,4 +89,45 @@ model WishlistItem {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@id([userId, productId])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  userId            String
+  status            OrderStatus @default(PENDING)
+  /// Amounts are in paise (1 INR = 100 paise), as Razorpay expects.
+  amount            Int
+  currency          String      @default("INR")
+  razorpayOrderId   String?     @unique
+  razorpayPaymentId String?
+  shipName          String
+  shipPhone         String
+  shipLine1         String
+  shipLine2         String?
+  shipCity          String
+  shipState         String
+  shipPincode       String
+  createdAt         DateTime    @default(now())
+  paidAt            DateTime?
+  user              User        @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+
+  @@index([userId, createdAt])
+}
+
+model OrderItem {
+  id             Int     @id @default(autoincrement())
+  orderId        String
+  productId      String?
+  /// Name and price are copied at purchase time so later catalog edits don't rewrite history.
+  name           String
+  unitPricePaise Int
+  qty            Int
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 }

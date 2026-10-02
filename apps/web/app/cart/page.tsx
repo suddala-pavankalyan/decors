@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MAX_QTY, useHydrated, useStore } from '@/lib/store';
+import { rupees } from '@/lib/money';
 
 export default function CartPage() {
   const hydrated = useHydrated();
@@ -40,7 +41,7 @@ export default function CartPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <Link href={`/products/${l.id}`} className="block truncate font-semibold hover:underline">{l.name}</Link>
-                    <p className="text-sm capitalize text-slate-500">{l.category.replace('-', ' ')} · ${l.price}</p>
+                    <p className="text-sm capitalize text-slate-500">{l.category.replace('-', ' ')} · {rupees(l.price)}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <button type="button" aria-label="Decrease quantity" onClick={() => setQty(l.id, l.qty - 1)}
                         className="h-7 w-7 rounded-full border border-slate-200">−</button>
@@ -51,7 +52,7 @@ export default function CartPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">${l.price * l.qty}</p>
+                    <p className="font-bold">{rupees(l.price * l.qty)}</p>
                     <button type="button" onClick={() => remove(l.id)} className="mt-2 text-xs text-rose-500 hover:underline">
                       Remove
                     </button>
@@ -64,14 +65,13 @@ export default function CartPage() {
           <aside className="h-fit rounded-2xl bg-white p-5 shadow md:sticky md:top-4">
             <h2 className="font-semibold">Order summary</h2>
             <div className="mt-3 flex justify-between text-sm">
-              <span>Subtotal</span><span className="font-bold">${subtotal}</span>
+              <span>Subtotal</span><span className="font-bold">{rupees(subtotal)}</span>
             </div>
             <p className="mt-1 text-xs text-slate-500">Shipping and tax are calculated at checkout.</p>
-            <button type="button" disabled
-              className="mt-4 w-full rounded-full bg-fuchsia-500 py-2.5 font-semibold text-white disabled:opacity-60"
-              title="Checkout is coming soon">
-              Checkout (coming soon)
-            </button>
+            <Link href="/checkout"
+              className="mt-4 block w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-2.5 text-center font-semibold text-white">
+              Checkout
+            </Link>
             <button type="button" onClick={clear} className="mt-3 w-full text-xs text-slate-500 hover:underline">
               Clear cart
             </button>

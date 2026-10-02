@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useHydrated, useStore } from '@/lib/store';
+import { rupees } from '@/lib/money';
 
 export default function WishlistPage() {
   const hydrated = useHydrated();
@@ -36,7 +37,7 @@ export default function WishlistPage() {
                 </div>
                 <div className="p-4">
                   <Link href={`/products/${w.id}`} className="font-display font-semibold hover:underline">{w.name}</Link>
-                  <p className="mt-1 font-bold">${w.price}</p>
+                  <p className="mt-1 font-bold">{rupees(w.price)}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <button type="button"
                       onClick={() => addToCart({ ...w, colorName: '', tags: [], rating: 0, description: '' })}
