@@ -8,14 +8,14 @@ const toEnum = (c: string) => c.toUpperCase().replace(/-/g, '_') as Category;
 const fromEnum = (c: Category) => c.toLowerCase().replace(/_/g, '-') as Product['category'];
 const CATEGORIES = Object.values(Category);
 
-const include = {
+export const include = {
   color: true,
   tags: true,
   images: { orderBy: { position: 'asc' } },
 } satisfies Prisma.ProductInclude;
 type Row = Prisma.ProductGetPayload<{ include: typeof include }>;
 
-const toDto = (r: Row): ProductSummary => ({
+export const toDto = (r: Row): ProductSummary => ({
   id: r.id,
   name: r.name,
   category: fromEnum(r.category),
