@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 const csv = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.split(',').filter(Boolean) : value;
@@ -11,5 +11,8 @@ export class QueryProductsDto {
   @IsOptional() @Transform(csv) tags?: string[];
   @IsOptional() @Transform(({ value }) => Number(value)) @IsNumber() @Min(0) minPrice?: number;
   @IsOptional() @Transform(({ value }) => Number(value)) @IsNumber() @Min(0) maxPrice?: number;
+  /** Page size (default 24, at most 60) and how many results to skip. */
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) @Max(60) limit?: number;
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(0) @Max(100000) offset?: number;
   @IsOptional() @IsIn(['price-asc', 'price-desc', 'rating']) sort?: 'price-asc' | 'price-desc' | 'rating';
 }

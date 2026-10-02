@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AdminGate from '@/components/admin/AdminGate';
@@ -9,19 +9,43 @@ import { rupees } from '@/lib/money';
 
 function ProductsTable() {
   const [items, setItems] = useState<AdminProduct[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
+  // Searching happens in the database; each keystroke cancels the previous request.
   useEffect(() => {
-    listProducts().then((r) => setItems(r.items)).catch((e) => setError(e.message));
-  }, []);
+    const ctl = new AbortController();
+    const t = setTimeout(() => {
+      listProducts({ q: filter, signal: ctl.signal })
+        .then((r) => { setItems(r.items); setTotal(r.total); setHasMore(r.hasMore); setError(''); })
+        .catch((e) => { if (!ctl.signal.aborted) setError(e.message); });
+    }, items === null ? 0 : 250);
+    return () => { clearTimeout(t); ctl.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
 
-  const shown = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    return (items ?? []).filter((p) => !q || `${p.name} ${p.category}`.toLowerCase().includes(q));
-  }, [items, filter]);
+  async function loadMore() {
+    if (!items) return;
+    setLoadingMore(true);
+    try {
+      const r = await listProducts({ q: filter, offset: items.length });
+      setItems((prev) => {
+        const seen = new Set((prev ?? []).map((p) => p.id));
+        return [...(prev ?? []), ...r.items.filter((p) => !seen.has(p.id))];
+      });
+      setTotal(r.total);
+      setHasMore(r.hasMore);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load more products');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function remove(id: string) {
     setBusy(id);
@@ -29,6 +53,7 @@ function ProductsTable() {
     try {
       await deleteProduct(id);
       setItems((x) => x?.filter((p) => p.id !== id) ?? null);
+      setTotal((n) => Math.max(n - 1, 0));
       setConfirming(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not delete the product');
@@ -37,12 +62,14 @@ function ProductsTable() {
     }
   }
 
+  const shown = items ?? [];
+
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-bold">Products</h1>
-          <p className="text-sm text-slate-500">{items ? `${items.length} in the catalog` : 'Loading…'}</p>
+          <p className="text-sm text-slate-500">{items ? `${total} ${filter.trim() ? 'match' : 'in the catalog'}` : 'Loading…'}</p>
         </div>
         <Link href="/admin/products/new"
           className="inline-flex items-center gap-2 rounded-full bg-spectrum px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-fuchsia-500/25 transition hover:scale-105">
@@ -95,6 +122,14 @@ function ProductsTable() {
         ))}
       </ul>
       {items && shown.length === 0 && <p className="mt-10 text-center text-slate-500">No products match.</p>}
+      {hasMore && (
+        <div className="mt-6 text-center">
+          <button type="button" onClick={loadMore} disabled={loadingMore}
+            className="rounded-full border border-slate-300 bg-white px-8 py-2.5 text-sm font-semibold transition hover:border-fuchsia-400 hover:text-fuchsia-700 disabled:opacity-60">
+            {loadingMore ? 'Loading…' : `Show more (${Math.max(total - shown.length, 0)} left)`}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

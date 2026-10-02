@@ -5,6 +5,12 @@ export interface Product {
   image: ProductImage | null;
 }
 export interface ProductDetail extends Product { images: ProductImage[]; related: Product[] }
+export interface ProductPage { total: number; items: Product[]; hasMore: boolean }
+export interface Hall { category: string; count: number; colors: string[] }
+export interface Overview {
+  halls: Hall[]; featured: Product[]; popularTags: string[];
+  colors: { name: string; hex: string }[]; tags: string[];
+}
 export interface Facets {
   categories: string[]; colors: { name: string; hex: string }[]; tags: string[]; maxPrice: number;
 }
@@ -19,15 +25,30 @@ export async function fetchFacets(): Promise<Facets> {
   return r.json();
 }
 
-export async function fetchProducts(f: Filters): Promise<{ total: number; items: Product[] }> {
+export const PAGE_SIZE = 24;
+
+export async function fetchOverview(): Promise<Overview> {
+  const r = await fetch(`${API}/products/overview`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('Failed to load the overview');
+  return r.json();
+}
+
+/** One page of results. `offset` skips what's already loaded; `signal` lets callers cancel stale requests. */
+export async function fetchProducts(
+  f: Filters,
+  opts: { limit?: number; offset?: number; signal?: AbortSignal } = {},
+): Promise<ProductPage> {
   const p = new URLSearchParams();
-  if (f.q) p.set('q', f.q);
+  if (f.q.trim()) p.set('q', f.q.trim());
   if (f.categories.length) p.set('categories', f.categories.join(','));
   if (f.colors.length) p.set('colors', f.colors.join(','));
   if (f.tags.length) p.set('tags', f.tags.join(','));
-  p.set('maxPrice', String(f.maxPrice));
+  if (f.maxPrice > 0) p.set('maxPrice', String(f.maxPrice));
   if (f.sort) p.set('sort', f.sort);
-  const r = await fetch(`${API}/products?${p}`, { cache: 'no-store' });
+  p.set('limit', String(opts.limit ?? PAGE_SIZE));
+  if (opts.offset) p.set('offset', String(opts.offset));
+  const r = await fetch(`${API}/products?${p}`, { cache: 'no-store', signal: opts.signal });
+  if (!r.ok) throw new Error('Failed to load products');
   return r.json();
 }
 

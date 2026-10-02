@@ -3,7 +3,7 @@ import Icon from '@/components/Icon';
 import ExhibitCard from '@/components/landing/ExhibitCard';
 import HeroSearch from '@/components/landing/HeroSearch';
 import Reveal from '@/components/landing/Reveal';
-import { fetchFacets, fetchProducts, type Facets, type Product } from '@/lib/api';
+import { fetchOverview, type Overview } from '@/lib/api';
 
 // Always show the current catalog (products change in the admin area).
 export const dynamic = 'force-dynamic';
@@ -28,23 +28,19 @@ function SectionTitle({ kicker, title, note }: { kicker: string; title: string; 
 }
 
 export default async function Home() {
-  // The landing page still works (without live data) if the API is down.
-  let facets: Facets | null = null;
-  let items: Product[] = [];
+  // One request, computed in the database. The landing page still works (without live data) if the API is down.
+  let overview: Overview | null = null;
   try {
-    facets = await fetchFacets();
-    items = (await fetchProducts({ q: '', categories: [], colors: [], tags: [], maxPrice: facets.maxPrice, sort: 'rating' })).items;
+    overview = await fetchOverview();
   } catch {
     /* fall through with empty data */
   }
 
-  const byCategory = (slug: string) => items.filter((p) => p.category === slug);
-  const featured = items.slice(0, 6);
-  // Suggest the tags most products carry.
-  const tagCounts = new Map<string, number>();
-  for (const p of items) for (const t of p.tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
-  const popular = [...tagCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 5).map(([t]) => t);
-  const suggestions = popular.length ? popular : FALLBACK_SUGGESTIONS;
+  const hallData = (slug: string) => overview?.halls.find((h) => h.category === slug);
+  const featured = overview?.featured ?? [];
+  const suggestions = overview?.popularTags.length ? overview.popularTags : FALLBACK_SUGGESTIONS;
+  const colors = overview?.colors ?? [];
+  const tags = overview?.tags ?? [];
 
   return (
     <main className="pb-20">
@@ -90,8 +86,8 @@ export default async function Home() {
         </Reveal>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {HALLS.map((h, i) => {
-            const pieces = byCategory(h.slug);
-            const swatches = [...new Set(pieces.map((p) => p.color))].slice(0, 6);
+            const hall = hallData(h.slug);
+            const swatches = hall?.colors ?? [];
             return (
               <Reveal key={h.slug} delay={i * 0.08}>
                 <Link href={`/shop?categories=${h.slug}`}
@@ -107,7 +103,7 @@ export default async function Home() {
                       </div>
                     )}
                     <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                      {facets ? `${pieces.length} piece${pieces.length === 1 ? '' : 's'} · ` : ''}Enter the hall
+                      {hall ? `${hall.count} piece${hall.count === 1 ? '' : 's'} · ` : ''}Enter the hall
                       <Icon name="back" size={16} className="rotate-180 transition group-hover:translate-x-1" />
                     </span>
                   </div>
@@ -138,13 +134,13 @@ export default async function Home() {
       )}
 
       {/* ── Colour wall ──────────────────────────────────────────── */}
-      {facets && facets.colors.length > 0 && (
+      {colors.length > 0 && (
         <section className="mx-auto mt-24 max-w-7xl px-4" aria-labelledby="colours">
           <Reveal>
             <div id="colours"><SectionTitle kicker="The colour wall" title="Start from a colour" note="Choose a shade and see everything that comes in it." /></div>
           </Reveal>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-            {facets.colors.map((c, i) => (
+            {colors.map((c, i) => (
               <Reveal key={c.name} delay={(i % 8) * 0.04}>
                 <Link href={`/shop?colors=${encodeURIComponent(c.name)}`}
                   className="group relative block h-36 overflow-hidden rounded-2xl shadow-md shadow-slate-900/10 outline-none transition duration-300 hover:-translate-y-1.5 hover:rotate-1 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-fuchsia-500 focus-visible:ring-offset-2"
@@ -158,12 +154,12 @@ export default async function Home() {
       )}
 
       {/* ── Occasions ────────────────────────────────────────────── */}
-      {facets && facets.tags.length > 0 && (
+      {tags.length > 0 && (
         <section className="mx-auto mt-24 max-w-7xl px-4" aria-labelledby="occasions">
           <Reveal>
             <div id="occasions"><SectionTitle kicker="By occasion & style" title="What are you celebrating?" /></div>
             <div className="flex flex-wrap gap-3">
-              {facets.tags.map((t) => (
+              {tags.map((t) => (
                 <Link key={t} href={`/shop?tags=${encodeURIComponent(t)}`}
                   className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium capitalize shadow-sm transition hover:-translate-y-0.5 hover:border-fuchsia-300 hover:text-fuchsia-700 hover:shadow-md">
                   {t}

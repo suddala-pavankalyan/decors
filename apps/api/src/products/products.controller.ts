@@ -16,6 +16,11 @@ export class ProductsController {
     return this.products.facets();
   }
 
+  @Get('overview')
+  overview() {
+    return this.products.overview();
+  }
+
   @Get(':id')
   one(@Param('id') id: string) {
     return this.products.findOne(id);

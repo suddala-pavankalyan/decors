@@ -8,7 +8,7 @@ import WishButton from './WishButton';
 import { rupees } from '@/lib/money';
 import Icon from './Icon';
 
-export default function ProductCard({ p }: { p: Product }) {
+export default function ProductCard({ p, priority = false }: { p: Product; priority?: boolean }) {
   return (
     <motion.article
       layout
@@ -24,7 +24,7 @@ export default function ProductCard({ p }: { p: Product }) {
         style={{ background: `linear-gradient(135deg, ${p.color}, ${p.color}88)` }}
       >
         {p.image && (
-          <Image src={p.image.url} alt={p.image.alt} fill sizes="(min-width:1280px) 25vw, (min-width:640px) 40vw, 100vw"
+          <Image src={p.image.url} alt={p.image.alt} fill priority={priority} sizes="(min-width:1280px) 25vw, (min-width:640px) 40vw, 100vw"
             className="object-cover" />
         )}
         <span className="absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold capitalize">
