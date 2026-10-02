@@ -12,7 +12,7 @@ export interface Filters {
   q: string; categories: string[]; colors: string[]; tags: string[]; maxPrice: number; sort: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export async function fetchFacets(): Promise<Facets> {
   const r = await fetch(`${API}/products/facets`, { cache: 'no-store' });
