@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import AddToCartButton from '@/components/AddToCartButton';
+import WishButton from '@/components/WishButton';
 import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
@@ -42,10 +44,14 @@ export default async function ProductPage({ params }: Props) {
             ))}
           </div>
 
-          <button type="button" className="mt-8 rounded-full px-8 py-3 font-semibold text-white shadow-lg transition hover:scale-105"
-            style={{ background: p.color }}>
-            Add to cart
-          </button>
+          <div className="mt-8 flex items-center gap-3">
+            <AddToCartButton
+              p={p}
+              label="Add to cart"
+              className="rounded-full px-8 py-3 font-semibold text-white shadow-lg"
+            />
+            <WishButton p={p} className="border border-slate-200" />
+          </div>
         </section>
       </div>
 
