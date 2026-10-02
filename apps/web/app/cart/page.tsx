@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MAX_QTY, useHydrated, useStore } from '@/lib/store';
 import { rupees } from '@/lib/money';
+import Icon from '@/components/Icon';
 
 export default function CartPage() {
   const hydrated = useHydrated();
@@ -44,11 +45,11 @@ export default function CartPage() {
                     <p className="text-sm capitalize text-slate-500">{l.category.replace('-', ' ')} · {rupees(l.price)}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <button type="button" aria-label="Decrease quantity" onClick={() => setQty(l.id, l.qty - 1)}
-                        className="h-7 w-7 rounded-full border border-slate-200">−</button>
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200"><Icon name="minus" size={14} /></button>
                       <span className="w-6 text-center text-sm">{l.qty}</span>
                       <button type="button" aria-label="Increase quantity" disabled={l.qty >= MAX_QTY}
                         onClick={() => setQty(l.id, l.qty + 1)}
-                        className="h-7 w-7 rounded-full border border-slate-200 disabled:opacity-40">+</button>
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 disabled:opacity-40"><Icon name="plus" size={14} /></button>
                     </div>
                   </div>
                   <div className="text-right">

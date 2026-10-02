@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useHydrated, useStore } from '@/lib/store';
 import { rupees } from '@/lib/money';
+import Icon from '@/components/Icon';
 
 export default function WishlistPage() {
   const hydrated = useHydrated();
@@ -20,7 +21,7 @@ export default function WishlistPage() {
 
       {wishlist.length === 0 ? (
         <div className="mt-10 text-center text-slate-500">
-          <p>Nothing saved yet — tap the ♡ on any product.</p>
+          <p>Nothing saved yet — tap the heart on any product.</p>
           <Link href="/" className="mt-3 inline-block text-fuchsia-600 hover:underline">Browse products</Link>
         </div>
       ) : (

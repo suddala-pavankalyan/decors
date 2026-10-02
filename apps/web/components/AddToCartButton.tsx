@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Product } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import Icon from './Icon';
 
 export default function AddToCartButton({
   p, label = 'Add', className = '',
@@ -22,7 +23,11 @@ export default function AddToCartButton({
       className={className}
       style={{ background: p.color }}
     >
-      {added ? '✓ Added' : label}
+      {added ? (
+        <span className="inline-flex items-center gap-1"><Icon name="check" size={16} />Added</span>
+      ) : (
+        label
+      )}
     </motion.button>
   );
 }

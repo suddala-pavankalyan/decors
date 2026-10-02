@@ -6,6 +6,7 @@ import type { Product } from '@/lib/api';
 import AddToCartButton from './AddToCartButton';
 import WishButton from './WishButton';
 import { rupees } from '@/lib/money';
+import Icon from './Icon';
 
 export default function ProductCard({ p }: { p: Product }) {
   return (
@@ -30,7 +31,9 @@ export default function ProductCard({ p }: { p: Product }) {
           {p.category.replace('-', ' ')}
         </span>
         <WishButton p={p} className="absolute right-3 top-3 z-10" />
-        <span className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2 py-1 text-xs">★ {p.rating}</span>
+        <span className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2 py-1 text-xs">
+          <Icon name="star" size={14} filled className="mr-0.5 inline-block align-[-2px] text-amber-500" />{p.rating}
+        </span>
       </div>
       <div className="p-4">
         <h3 className="font-display text-lg font-semibold">

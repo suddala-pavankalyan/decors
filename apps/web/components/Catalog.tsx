@@ -45,8 +45,8 @@ export default function Catalog() {
           <select value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
             className="rounded-full border border-slate-200 bg-white px-4">
             <option value="">Sort</option>
-            <option value="price-asc">Price ↑</option>
-            <option value="price-desc">Price ↓</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
             <option value="rating">Top rated</option>
           </select>
         </div>
