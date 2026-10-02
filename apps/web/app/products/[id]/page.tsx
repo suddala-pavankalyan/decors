@@ -6,6 +6,7 @@ import WishButton from '@/components/WishButton';
 import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
+import { rupees } from '@/lib/money';
 
 type Props = { params: { id: string } };
 
@@ -31,7 +32,7 @@ export default async function ProductPage({ params }: Props) {
           </span>
           <h1 className="mt-3 font-display text-4xl font-bold">{p.name}</h1>
           <p className="mt-2 text-amber-600">★ {p.rating}</p>
-          <p className="mt-4 text-3xl font-bold">${p.price}</p>
+          <p className="mt-4 text-3xl font-bold">{rupees(p.price)}</p>
           <p className="mt-4 text-slate-600">{p.description}</p>
 
           <div className="mt-6 flex items-center gap-2 text-sm">

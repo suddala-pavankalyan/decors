@@ -1,6 +1,7 @@
 'use client';
 import { motion } from 'framer-motion';
 import type { Facets, Filters } from '@/lib/api';
+import { rupees } from '@/lib/money';
 
 function toggle(list: string[], v: string) {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
@@ -63,7 +64,7 @@ export default function FilterSidebar({
         </div>
       </section>
       <section>
-        <h4 className="mb-2 font-semibold">Max price: ${filters.maxPrice}</h4>
+        <h4 className="mb-2 font-semibold">Max price: {rupees(filters.maxPrice)}</h4>
         <input type="range" min={10} max={facets.maxPrice} value={filters.maxPrice}
           onChange={(e) => onChange({ ...filters, maxPrice: Number(e.target.value) })}
           className="w-full accent-fuchsia-500" />

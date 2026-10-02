@@ -41,6 +41,7 @@ export default function Header() {
         </Link>
         {ready && (user ? (
           <span className="flex items-center gap-3">
+            <Link href="/orders" className="hover:text-fuchsia-600">Orders</Link>
             <span className="text-slate-600">Hi, {user.name.split(' ')[0]}</span>
             <button type="button" onClick={logout} className="hover:text-fuchsia-600">Log out</button>
           </span>
