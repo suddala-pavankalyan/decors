@@ -3,3 +3,15 @@
 @tailwind utilities;
 
 body { @apply min-h-screen bg-gradient-to-br from-rose-50 via-amber-50 to-sky-50 text-slate-800; }
+
+/* Animated brand gradient text (Instagram-style spectrum). */
+.text-spectrum {
+  @apply bg-spectrum bg-clip-text text-transparent;
+  background-size: 200% 100%;
+  animation: shift 8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-spectrum, .motion-safe-anim { animation: none !important; }
+  * { scroll-behavior: auto !important; }
+}

@@ -32,28 +32,31 @@ export default function Header() {
   useEffect(() => { init(); }, [init]);
   return (
     <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-      <Link href="/" className="font-display text-xl font-bold">Decors</Link>
-      <div className="flex items-center gap-6 text-sm font-medium">
-        <Link href="/wishlist" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
+      <Link href="/" className="flex shrink-0 items-center gap-2.5 font-display text-xl font-bold">
+        <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-xl bg-spectrum text-base text-white shadow-md shadow-fuchsia-500/30">D</span>
+        Decors
+      </Link>
+      <div className="flex items-center gap-4 text-sm font-medium sm:gap-6">
+        <Link href="/wishlist" aria-label="Wishlist" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
           <span className="relative"><Icon name="heart" size={20} /><Badge n={hydrated ? wishCount : 0} /></span>
-          Wishlist
+          <span className="hidden sm:inline">Wishlist</span>
         </Link>
-        <Link href="/cart" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
+        <Link href="/cart" aria-label="Cart" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
           <span className="relative"><Icon name="bag" size={20} /><Badge n={hydrated ? cartCount : 0} /></span>
-          Cart
+          <span className="hidden sm:inline">Cart</span>
         </Link>
         {ready && (user ? (
           <span className="flex items-center gap-3">
-            <Link href="/orders" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
-              <Icon name="box" size={20} />Orders
+            <Link href="/orders" aria-label="Orders" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
+              <Icon name="box" size={20} /><span className="hidden sm:inline">Orders</span>
             </Link>
             <span className="inline-flex items-center gap-1.5 text-slate-600">
-              <Icon name="user" size={20} />{user.name.split(' ')[0]}
+              <Icon name="user" size={20} /><span className="hidden md:inline">{user.name.split(' ')[0]}</span>
             </span>
             <button type="button" onClick={logout} className="hover:text-fuchsia-600">Log out</button>
           </span>
         ) : (
-          <Link href="/login" className="rounded-full bg-fuchsia-500 px-4 py-1.5 text-white hover:bg-fuchsia-600">Log in</Link>
+          <Link href="/login" className="whitespace-nowrap rounded-full bg-spectrum px-4 py-1.5 font-semibold text-white shadow-md shadow-fuchsia-500/25 transition hover:scale-105">Log in</Link>
         ))}
       </div>
     </nav>
