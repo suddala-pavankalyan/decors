@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Category {
+  WEDDING_CARDS
+  GIFT_CARDS
+  WALL_DECOR
+  PAINTS
+}
+
+model Color {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  hex      String
+  products Product[]
+}
+
+model Tag {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  category    Category
+  price       Int
+  rating      Float    @default(0)
+  description String
+  colorId     Int
+  color       Color    @relation(fields: [colorId], references: [id])
+  tags        Tag[]
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@index([price])
+  @@index([colorId])
+}

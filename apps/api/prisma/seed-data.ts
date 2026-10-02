@@ -1,4 +1,4 @@
-import { Product } from './product';
+import { Product } from '../src/products/product';
 
 export const SEED_PRODUCTS: Product[] = [
   {

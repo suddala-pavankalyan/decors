@@ -1,44 +1,71 @@
 import { Injectable } from '@nestjs/common';
-import { Product } from './product';
-import { SEED_PRODUCTS } from './seed';
+import { Category, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { QueryProductsDto } from './query-products.dto';
+import { Product } from './product';
+
+const toEnum = (c: string) => c.toUpperCase().replace(/-/g, '_') as Category;
+const fromEnum = (c: Category) => c.toLowerCase().replace(/_/g, '-') as Product['category'];
+const CATEGORIES = Object.values(Category);
+
+const include = { color: true, tags: true } satisfies Prisma.ProductInclude;
+type Row = Prisma.ProductGetPayload<{ include: typeof include }>;
+
+const toDto = (r: Row): Product => ({
+  id: r.id,
+  name: r.name,
+  category: fromEnum(r.category),
+  price: r.price,
+  color: r.color.hex,
+  colorName: r.color.name,
+  tags: r.tags.map((t) => t.name),
+  rating: r.rating,
+  description: r.description,
+});
 
 @Injectable()
 export class ProductsService {
-  // In-memory for now; swap for Prisma/Postgres without touching the controller.
-  private readonly items: Product[] = SEED_PRODUCTS;
+  constructor(private readonly prisma: PrismaService) {}
 
-  search(q: QueryProductsDto): { total: number; items: Product[] } {
-    const text = q.q?.trim().toLowerCase();
-    let out = this.items.filter((p) => {
-      if (text && !`${p.name} ${p.description} ${p.tags.join(' ')}`.toLowerCase().includes(text)) return false;
-      if (q.categories?.length && !q.categories.includes(p.category)) return false;
-      if (q.colors?.length && !q.colors.includes(p.colorName)) return false;
-      if (q.tags?.length && !q.tags.some((t) => p.tags.includes(t))) return false;
-      if (q.minPrice !== undefined && p.price < q.minPrice) return false;
-      if (q.maxPrice !== undefined && p.price > q.maxPrice) return false;
-      return true;
-    });
-    if (q.sort === 'price-asc') out = [...out].sort((a, b) => a.price - b.price);
-    if (q.sort === 'price-desc') out = [...out].sort((a, b) => b.price - a.price);
-    if (q.sort === 'rating') out = [...out].sort((a, b) => b.rating - a.rating);
-    return { total: out.length, items: out };
+  async search(q: QueryProductsDto): Promise<{ total: number; items: Product[] }> {
+    const text = q.q?.trim();
+    const categories = q.categories?.map(toEnum).filter((c) => CATEGORIES.includes(c));
+    const where: Prisma.ProductWhereInput = {
+      ...(text && {
+        OR: [
+          { name: { contains: text, mode: 'insensitive' } },
+          { description: { contains: text, mode: 'insensitive' } },
+          { tags: { some: { name: { contains: text, mode: 'insensitive' } } } },
+        ],
+      }),
+      ...(q.categories?.length && { category: { in: categories } }),
+      ...(q.colors?.length && { color: { name: { in: q.colors } } }),
+      ...(q.tags?.length && { tags: { some: { name: { in: q.tags } } } }),
+      ...((q.minPrice !== undefined || q.maxPrice !== undefined) && {
+        price: { gte: q.minPrice, lte: q.maxPrice },
+      }),
+    };
+    const orderBy: Prisma.ProductOrderByWithRelationInput =
+      q.sort === 'price-asc' ? { price: 'asc' }
+      : q.sort === 'price-desc' ? { price: 'desc' }
+      : q.sort === 'rating' ? { rating: 'desc' }
+      : { createdAt: 'asc' };
+
+    const rows = await this.prisma.product.findMany({ where, orderBy, include });
+    return { total: rows.length, items: rows.map(toDto) };
   }
 
-  facets() {
-    const colors = new Map<string, string>();
-    const tags = new Set<string>();
-    let max = 0;
-    for (const p of this.items) {
-      colors.set(p.colorName, p.color);
-      p.tags.forEach((t) => tags.add(t));
-      max = Math.max(max, p.price);
-    }
+  async facets() {
+    const [colors, tags, max] = await Promise.all([
+      this.prisma.color.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.tag.findMany({ orderBy: { name: 'asc' } }),
+      this.prisma.product.aggregate({ _max: { price: true } }),
+    ]);
     return {
-      categories: ['wedding-cards', 'gift-cards', 'wall-decor', 'paints'],
-      colors: [...colors].map(([name, hex]) => ({ name, hex })),
-      tags: [...tags].sort(),
-      maxPrice: max,
+      categories: CATEGORIES.map(fromEnum),
+      colors: colors.map((c) => ({ name: c.name, hex: c.hex })),
+      tags: tags.map((t) => t.name),
+      maxPrice: max._max.price ?? 0,
     };
   }
 }
