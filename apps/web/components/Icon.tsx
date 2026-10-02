@@ -43,6 +43,12 @@ const ICONS = {
   back: { lines: ['M19 12H5.5', 'M11.2 6.2L5.5 12l5.7 5.8'] },
   plus: { lines: ['M12 5.8v12.4', 'M5.8 12h12.4'] },
   minus: { lines: ['M5.8 12h12.4'] },
+  chevron: { lines: ['M6.5 9.5l5.5 5.5 5.5-5.5'] },
+  search: {
+    shape: 'M10.8 4.6a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4z',
+    lines: ['M15.4 15.6L19.8 20'],
+  },
+  close: { lines: ['M6.8 6.8l10.4 10.4', 'M17.2 6.8L6.8 17.2'] },
 } satisfies Record<string, Def>;
 
 export type IconName = keyof typeof ICONS;

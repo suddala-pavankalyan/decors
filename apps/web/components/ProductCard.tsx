@@ -14,7 +14,7 @@ export default function ProductCard({ p }: { p: Product }) {
       layout
       initial={{ opacity: 0, scale: 0.9, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.18 } }}
       whileHover={{ y: -8, rotate: -0.5 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       className="relative overflow-hidden rounded-3xl bg-white shadow-lg shadow-slate-200"

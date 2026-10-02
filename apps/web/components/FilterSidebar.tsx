@@ -1,11 +1,8 @@
 'use client';
 import { motion } from 'framer-motion';
 import type { Facets, Filters } from '@/lib/api';
+import { toggle } from '@/lib/filters';
 import { rupees } from '@/lib/money';
-
-function toggle(list: string[], v: string) {
-  return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
-}
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
