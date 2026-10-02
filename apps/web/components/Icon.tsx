@@ -49,6 +49,18 @@ const ICONS = {
     lines: ['M15.4 15.6L19.8 20'],
   },
   close: { lines: ['M6.8 6.8l10.4 10.4', 'M17.2 6.8L6.8 17.2'] },
+  dashboard: {
+    shape: 'M4.5 4.5h6v6h-6z',
+    lines: ['M13.5 4.5h6v6h-6z', 'M4.5 13.5h6v6h-6z', 'M13.5 13.5h6v6h-6z'],
+  },
+  trash: { lines: ['M5 7h14', 'M10 7V5h4v2', 'M7 7l.8 12h8.4L17 7', 'M10.5 11v5', 'M13.5 11v5'] },
+  edit: {
+    shape: 'M5 19l.9-3.9L15.8 5.2a1.9 1.9 0 0 1 2.7 0l.3.3a1.9 1.9 0 0 1 0 2.7L8.9 18.1z',
+    lines: ['M13.8 7.2l3 3'],
+  },
+  upload: {
+    lines: ['M12 15.5V5', 'M7.5 9.2L12 4.7l4.5 4.5', 'M5 15v3.2a1.3 1.3 0 0 0 1.3 1.3h11.4a1.3 1.3 0 0 0 1.3-1.3V15'],
+  },
 } satisfies Record<string, Def>;
 
 export type IconName = keyof typeof ICONS;

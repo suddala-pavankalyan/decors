@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Category, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { publicUrl } from '../uploads/public-url';
+import { fromEnum, toEnum } from './category';
 import { QueryProductsDto } from './query-products.dto';
 import { Product, ProductDetail, ProductSummary } from './product';
 
-const toEnum = (c: string) => c.toUpperCase().replace(/-/g, '_') as Category;
-const fromEnum = (c: Category) => c.toLowerCase().replace(/_/g, '-') as Product['category'];
 const CATEGORIES = Object.values(Category);
 
 export const include = {
@@ -25,7 +25,7 @@ export const toDto = (r: Row): ProductSummary => ({
   tags: r.tags.map((t) => t.name),
   rating: r.rating,
   description: r.description,
-  image: r.images[0] ? { url: r.images[0].url, alt: r.images[0].alt } : null,
+  image: r.images[0] ? { url: publicUrl(r.images[0].url), alt: r.images[0].alt } : null,
 });
 
 @Injectable()
@@ -74,15 +74,16 @@ export class ProductsService {
     });
     return {
       ...toDto(row),
-      images: row.images.map((i) => ({ url: i.url, alt: i.alt })),
+      images: row.images.map((i) => ({ url: publicUrl(i.url), alt: i.alt })),
       related: related.map(toDto),
     };
   }
 
   async facets() {
     const [colors, tags, max] = await Promise.all([
-      this.prisma.color.findMany({ orderBy: { id: 'asc' } }),
-      this.prisma.tag.findMany({ orderBy: { name: 'asc' } }),
+      // Only offer colours/tags that at least one product uses (deleted products can leave them behind).
+      this.prisma.color.findMany({ where: { products: { some: {} } }, orderBy: { id: 'asc' } }),
+      this.prisma.tag.findMany({ where: { products: { some: {} } }, orderBy: { name: 'asc' } }),
       this.prisma.product.aggregate({ _max: { price: true } }),
     ]);
     return {
