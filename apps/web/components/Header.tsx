@@ -47,6 +47,11 @@ export default function Header() {
         </Link>
         {ready && (user ? (
           <span className="flex items-center gap-3">
+            {user.role === 'ADMIN' && (
+              <Link href="/admin" aria-label="Admin" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
+                <Icon name="dashboard" size={20} /><span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
             <Link href="/orders" aria-label="Orders" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
               <Icon name="box" size={20} /><span className="hidden sm:inline">Orders</span>
             </Link>

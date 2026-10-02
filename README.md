@@ -31,3 +31,21 @@ Checkout creates an order priced on the server from your saved cart, opens Razor
 3. Prices are treated as INR. Test cards: https://razorpay.com/docs/payments/payments/test-card-details/
 
 Endpoints: `POST /checkout`, `POST /checkout/verify`, `GET /orders`, `GET /orders/:id`, `POST /webhooks/razorpay`.
+
+## Admin area (products + photos)
+
+Admins manage the catalog at `/admin`: add, edit and delete products, and upload, reorder and delete photos.
+
+1. Sign up on the website with the account you want to be admin.
+2. Promote it (run again with `--remove` to demote):
+   ```
+   npm run make-admin -w apps/api -- you@example.com
+   ```
+3. Log out and back in (or refresh): an **Admin** link appears in the header.
+
+Notes
+- Anyone can sign up, so admin is never granted automatically. Only this command (run by someone with access to the server) can do it, and the API re-checks the role on every admin request.
+- Photos: JPEG, PNG or WebP, up to 5 MB, up to 8 per product. The file type is checked from the file contents, not the name, and SVG is not accepted.
+- Photos are stored on local disk in `apps/api/uploads` (`UPLOAD_DIR`) and served from the API at `/uploads/...`. Most hosts wipe local disk on redeploy, so for production move storage to S3 or Cloudinary (the code is isolated in `apps/api/src/uploads/image-storage.ts`).
+- Set `API_PUBLIC_URL` (API) and `NEXT_PUBLIC_API_URL` (web) to the API's public address when deploying.
+- Deleting a product removes it from carts and wishlists; past orders keep their item name and price.

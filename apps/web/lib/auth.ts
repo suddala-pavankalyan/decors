@@ -4,7 +4,7 @@ import { API } from '@/lib/api';
 import * as account from '@/lib/account';
 import { useStore } from '@/lib/store';
 
-export interface User { id: string; email: string; name: string }
+export interface User { id: string; email: string; name: string; role: 'USER' | 'ADMIN' }
 
 interface AuthState {
   user: User | null;

@@ -9,6 +9,7 @@ export interface PublicUser {
   id: string;
   email: string;
   name: string;
+  role: 'USER' | 'ADMIN';
 }
 
 // Compared against when the email is unknown, so login timing doesn't reveal which emails exist.
@@ -43,12 +44,12 @@ export class AuthService {
   async me(id: string): Promise<PublicUser> {
     const u = await this.prisma.user.findUnique({ where: { id } });
     if (!u) throw new UnauthorizedException();
-    return { id: u.id, email: u.email, name: u.name };
+    return { id: u.id, email: u.email, name: u.name, role: u.role };
   }
 
-  private issue(u: { id: string; email: string; name: string }) {
+  private issue(u: { id: string; email: string; name: string; role: 'USER' | 'ADMIN' }) {
     return {
-      user: { id: u.id, email: u.email, name: u.name },
+      user: { id: u.id, email: u.email, name: u.name, role: u.role },
       token: this.jwt.sign({ sub: u.id }),
     };
   }

@@ -59,11 +59,17 @@ model ProductImage {
   @@index([productId, position])
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
   passwordHash String
+  role         Role     @default(USER)
   createdAt    DateTime @default(now())
   cart         CartItem[]
   wishlist     WishlistItem[]
