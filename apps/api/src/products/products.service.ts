@@ -8,12 +8,22 @@ import { Product, ProductDetail, ProductSummary } from './product';
 
 const CATEGORIES = Object.values(Category);
 
+export const DEFAULT_PAGE_SIZE = 24;
+
+/** What a product card needs: only the first photo is loaded (lists never show the rest). */
 export const include = {
   color: true,
   tags: true,
-  images: { orderBy: { position: 'asc' } },
+  images: { orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1 },
 } satisfies Prisma.ProductInclude;
 type Row = Prisma.ProductGetPayload<{ include: typeof include }>;
+
+/** The detail page needs every photo. */
+const includeAllImages = {
+  color: true,
+  tags: true,
+  images: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+} satisfies Prisma.ProductInclude;
 
 export const toDto = (r: Row): ProductSummary => ({
   id: r.id,
@@ -32,7 +42,7 @@ export const toDto = (r: Row): ProductSummary => ({
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(q: QueryProductsDto): Promise<{ total: number; items: ProductSummary[] }> {
+  async search(q: QueryProductsDto): Promise<{ total: number; items: ProductSummary[]; hasMore: boolean }> {
     const text = q.q?.trim();
     const categories = q.categories?.map(toEnum).filter((c) => CATEGORIES.includes(c));
     const where: Prisma.ProductWhereInput = {
@@ -50,18 +60,59 @@ export class ProductsService {
         price: { gte: q.minPrice, lte: q.maxPrice },
       }),
     };
-    const orderBy: Prisma.ProductOrderByWithRelationInput =
-      q.sort === 'price-asc' ? { price: 'asc' }
-      : q.sort === 'price-desc' ? { price: 'desc' }
-      : q.sort === 'rating' ? { rating: 'desc' }
-      : { createdAt: 'asc' };
+    // `id` breaks ties so pages never repeat or skip a product when many share a price/rating.
+    const orderBy: Prisma.ProductOrderByWithRelationInput[] =
+      q.sort === 'price-asc' ? [{ price: 'asc' }, { id: 'asc' }]
+      : q.sort === 'price-desc' ? [{ price: 'desc' }, { id: 'asc' }]
+      : q.sort === 'rating' ? [{ rating: 'desc' }, { id: 'asc' }]
+      : [{ createdAt: 'asc' }, { id: 'asc' }];
+    const take = q.limit ?? DEFAULT_PAGE_SIZE;
+    const skip = q.offset ?? 0;
 
-    const rows = await this.prisma.product.findMany({ where, orderBy, include });
-    return { total: rows.length, items: rows.map(toDto) };
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({ where, orderBy, skip, take, include }),
+    ]);
+    return { total, items: rows.map(toDto), hasMore: skip + rows.length < total };
+  }
+
+  /**
+   * Everything the landing page needs in one round trip, computed in the database
+   * (counts and colours per category, the top-rated pieces, popular tags) instead of
+   * downloading the whole catalog to count it in the browser.
+   */
+  async overview() {
+    const [facets, perCategoryColour, featured, popular] = await Promise.all([
+      this.facets(),
+      this.prisma.product.groupBy({ by: ['category', 'colorId'], _count: { _all: true } }),
+      this.prisma.product.findMany({ orderBy: [{ rating: 'desc' }, { id: 'asc' }], take: 6, include }),
+      this.prisma.tag.findMany({
+        where: { products: { some: {} } },
+        orderBy: [{ products: { _count: 'desc' } }, { name: 'asc' }],
+        take: 5,
+        select: { name: true },
+      }),
+    ]);
+    const hexById = new Map((await this.prisma.color.findMany({ select: { id: true, hex: true } })).map((c) => [c.id, c.hex]));
+    const halls = CATEGORIES.map((c) => {
+      const rows = perCategoryColour.filter((r) => r.category === c).sort((a, b) => b._count._all - a._count._all);
+      return {
+        category: fromEnum(c),
+        count: rows.reduce((n, r) => n + r._count._all, 0),
+        colors: rows.slice(0, 6).map((r) => hexById.get(r.colorId)).filter((h): h is string => !!h),
+      };
+    });
+    return {
+      halls,
+      featured: featured.map(toDto),
+      popularTags: popular.map((t) => t.name),
+      colors: facets.colors,
+      tags: facets.tags,
+    };
   }
 
   async findOne(id: string): Promise<ProductDetail> {
-    const row = await this.prisma.product.findUnique({ where: { id }, include });
+    const row = await this.prisma.product.findUnique({ where: { id }, include: includeAllImages });
     if (!row) throw new NotFoundException('Product not found');
     const related = await this.prisma.product.findMany({
       where: {

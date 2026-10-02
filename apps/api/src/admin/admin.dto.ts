@@ -28,3 +28,9 @@ export class ReorderDto {
 export class UploadAltDto {
   @IsOptional() @Transform(trim) @IsString() @Length(0, 200) alt?: string;
 }
+
+export class AdminListQueryDto {
+  @IsOptional() @Transform(trim) @IsString() @Length(0, 100) q?: string;
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(0) @Max(100000) offset?: number;
+}

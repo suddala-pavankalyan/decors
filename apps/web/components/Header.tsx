@@ -47,6 +47,7 @@ export default function Header() {
           <span className="relative"><Icon name="bag" size={20} /><Badge n={hydrated ? cartCount : 0} /></span>
           <span className="hidden sm:inline">Cart</span>
         </Link>
+        {!ready && <span aria-hidden className="h-9 w-24 animate-pulse rounded-full bg-slate-200/70" />}
         {ready && (user ? (
           <UserMenu user={user} />
         ) : (

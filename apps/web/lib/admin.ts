@@ -11,12 +11,13 @@ export const MAX_IMAGES = 8;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-async function call<T>(path: string, method = 'GET', body?: unknown, form?: FormData): Promise<T> {
+async function call<T>(path: string, method = 'GET', body?: unknown, form?: FormData, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${API}/admin/products${path}`, {
     method,
     credentials: 'include',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: form ?? (body ? JSON.stringify(body) : undefined),
+    signal,
   });
   if (!res.ok) {
     let msg = res.status === 403 ? 'You do not have admin access.' : 'Something went wrong. Please try again.';
@@ -30,7 +31,14 @@ async function call<T>(path: string, method = 'GET', body?: unknown, form?: Form
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export const listProducts = () => call<{ total: number; items: AdminProduct[] }>('');
+export interface AdminPage { total: number; items: AdminProduct[]; hasMore: boolean }
+export const listProducts = (opts: { q?: string; offset?: number; signal?: AbortSignal } = {}) => {
+  const p = new URLSearchParams();
+  if (opts.q?.trim()) p.set('q', opts.q.trim());
+  if (opts.offset) p.set('offset', String(opts.offset));
+  const qs = p.toString();
+  return call<AdminPage>(qs ? `?${qs}` : '', 'GET', undefined, undefined, opts.signal);
+};
 export const getProduct = (id: string) => call<AdminProduct>(`/${encodeURIComponent(id)}`);
 export const createProduct = (p: ProductInput) => call<AdminProduct>('', 'POST', p);
 export const updateProduct = (id: string, p: ProductInput) => call<AdminProduct>(`/${encodeURIComponent(id)}`, 'PUT', p);

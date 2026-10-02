@@ -11,7 +11,7 @@ export default function ExhibitCard({ p, index }: { p: Product; index: number })
       <div className="rounded-3xl border border-slate-200/70 bg-white p-3 shadow-lg shadow-slate-900/5 transition duration-300 group-hover:-translate-y-1.5 group-hover:shadow-xl group-hover:shadow-fuchsia-900/10">
         <div className="relative aspect-square overflow-hidden rounded-2xl" style={{ background: `linear-gradient(160deg, ${p.color}, ${p.color}99)` }}>
           {p.image && (
-            <Image src={p.image.url} alt={p.image.alt} fill sizes="(min-width:1024px) 22vw, (min-width:640px) 40vw, 90vw"
+            <Image src={p.image.url} alt={p.image.alt} fill priority={index < 3} sizes="(min-width:1024px) 22vw, (min-width:640px) 40vw, 90vw"
               className="object-cover transition duration-500 group-hover:scale-105" />
           )}
         </div>

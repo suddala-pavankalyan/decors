@@ -22,7 +22,7 @@ Profile: the avatar menu in the header leads to `/profile` (change name, change 
 
 Cart and wishlist: stored in the browser for guests; when logged in they are saved to your account (`/account/*` endpoints) and guest items are merged in at login.
 
-API: `GET /products?q=&categories=a,b&colors=Gold&tags=wedding&maxPrice=100&sort=price-asc|price-desc|rating`, `GET /products/facets`, `GET /products/:id` (with images + related).
+API: `GET /products?q=&categories=a,b&colors=Gold&tags=wedding&maxPrice=100&sort=price-asc|price-desc|rating&limit=24&offset=0` (paged: returns `total` and `hasMore`; `limit` is at most 60), `GET /products/facets`, `GET /products/overview` (everything the landing page needs in one call), `GET /products/:id` (with images + related).
 
 ## Payments (Razorpay, INR)
 
@@ -55,3 +55,13 @@ Notes
 ## Pages
 - `/` — the exhibition landing page: search (press Enter to open the results), the four category halls, the top-rated pieces, a colour wall and occasions.
 - `/shop` — the full collection with search, filters and sorting. Filters live in the URL (for example `/shop?categories=paints&sort=price-asc`), so results can be shared and survive a reload.
+
+## Performance notes
+- Product lists are paged (24 at a time, "Show more" for the rest) and the admin list is paged and searched in the database, so page weight stays small however large the catalog grows. With 3,000 products a list page is about 8 KB and 10 ms.
+- `/shop` is rendered on the server with the first page of results, so it paints with products instead of a spinner. Later filter changes cancel any request still in flight.
+- To see real-world speed, run the production build instead of the dev servers (the dev server compiles each page the first time you open it, which feels slow):
+  ```
+  npm run build
+  npm run start:api
+  npm run start:web
+  ```

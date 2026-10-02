@@ -1,12 +1,12 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Put, UploadedFile, UseGuards, UseInterceptors,
+  Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MAX_IMAGE_BYTES } from '../uploads/image-storage';
-import { ProductInputDto, ReorderDto, UploadAltDto } from './admin.dto';
+import { AdminListQueryDto, ProductInputDto, ReorderDto, UploadAltDto } from './admin.dto';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 
@@ -15,7 +15,7 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(private readonly admin: AdminService) {}
 
-  @Get() list() { return this.admin.list(); }
+  @Get() list(@Query() query: AdminListQueryDto) { return this.admin.list(query); }
   @Get(':id') get(@Param('id') id: string) { return this.admin.get(id); }
   @Post() create(@Body() dto: ProductInputDto) { return this.admin.create(dto); }
   @Put(':id') update(@Param('id') id: string, @Body() dto: ProductInputDto) { return this.admin.update(id, dto); }

@@ -41,16 +41,17 @@ export default function SearchBox({
   }, [open]);
 
   // Product suggestions ignore the sidebar filters so you can jump straight to any item.
+  // Only fetched while the panel is open, only the five we show, and cancelled when you keep typing.
   useEffect(() => {
-    if (q.length < 2) { setMatches(null); return; }
-    let stale = false;
+    if (!open || q.length < 2) { setMatches(null); return; }
+    const ctl = new AbortController();
     const t = setTimeout(() => {
-      fetchProducts({ q, categories: [], colors: [], tags: [], maxPrice: facets.maxPrice, sort: 'rating' })
-        .then((r) => { if (!stale) setMatches(r.items.slice(0, 5)); })
-        .catch(() => { if (!stale) setMatches(null); });
+      fetchProducts({ q, categories: [], colors: [], tags: [], maxPrice: 0, sort: 'rating' }, { limit: 5, signal: ctl.signal })
+        .then((r) => setMatches(r.items))
+        .catch(() => { if (!ctl.signal.aborted) setMatches(null); });
     }, 200);
-    return () => { stale = true; clearTimeout(t); };
-  }, [q, facets.maxPrice]);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [open, q]);
 
   const popularTags = facets.tags.slice(0, 8);
 

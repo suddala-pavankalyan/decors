@@ -3,10 +3,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { fromEnum, toEnum } from '../products/category';
+import { CATEGORY_SLUGS, fromEnum, toEnum } from '../products/category';
 import { ImageStorage } from '../uploads/image-storage';
 import { publicUrl } from '../uploads/public-url';
-import { ProductInputDto } from './admin.dto';
+import { AdminListQueryDto, ProductInputDto } from './admin.dto';
 
 export const MAX_IMAGES = 8;
 
@@ -34,9 +34,24 @@ const toAdminDto = (r: Row) => ({
 export class AdminService {
   constructor(private readonly prisma: PrismaService, private readonly storage: ImageStorage) {}
 
-  async list() {
-    const rows = await this.prisma.product.findMany({ include, orderBy: { createdAt: 'desc' } });
-    return { total: rows.length, items: rows.map(toAdminDto) };
+  /** One page of products, newest first, optionally filtered by name or category (done in the database). */
+  async list(query: AdminListQueryDto = {}) {
+    const text = query.q?.trim();
+    const where: Prisma.ProductWhereInput = text
+      ? {
+          OR: [
+            { name: { contains: text, mode: 'insensitive' } },
+            ...(CATEGORY_SLUGS.filter((s) => s.replace('-', ' ').includes(text.toLowerCase())).map((s) => ({ category: toEnum(s) })) ?? []),
+          ],
+        }
+      : {};
+    const take = query.limit ?? 30;
+    const skip = query.offset ?? 0;
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({ where, include, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip, take }),
+    ]);
+    return { total, items: rows.map(toAdminDto), hasMore: skip + rows.length < total };
   }
 
   async get(id: string) {
