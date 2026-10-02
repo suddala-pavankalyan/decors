@@ -36,14 +36,14 @@ export default function ProductCard({ p, priority = false }: { p: Product; prior
         </span>
       </div>
       <div className="p-4">
-        <h3 className="font-display text-lg font-semibold">
+        <h3 className="text-lg font-semibold">
           <Link href={`/products/${p.id}`} className="after:absolute after:inset-0 hover:underline">
             {p.name}
           </Link>
         </h3>
         <p className="mt-1 text-sm text-slate-500">{p.description}</p>
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xl font-bold">{rupees(p.price)}</span>
+          <span className="text-xl font-bold tabular-nums">{rupees(p.price)}</span>
           <AddToCartButton
             p={p}
             className="relative z-10 rounded-full px-4 py-1.5 text-sm font-semibold text-white"

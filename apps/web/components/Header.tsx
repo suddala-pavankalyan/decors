@@ -33,7 +33,7 @@ export default function Header() {
   useEffect(() => { init(); }, [init]);
   return (
     <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-      <Link href="/" className="flex shrink-0 items-center gap-2.5 font-display text-xl font-bold">
+      <Link href="/" className="flex shrink-0 items-center gap-2.5 text-xl font-extrabold tracking-tight">
         <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-xl bg-spectrum text-base text-white shadow-md shadow-fuchsia-500/30">D</span>
         Decors
       </Link>

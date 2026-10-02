@@ -31,11 +31,11 @@ export default async function ProductPage({ params }: Props) {
           <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold capitalize shadow">
             {p.category.replace('-', ' ')}
           </span>
-          <h1 className="mt-3 font-display text-4xl font-bold">{p.name}</h1>
+          <h1 className="mt-3 text-4xl font-extrabold">{p.name}</h1>
           <p className="mt-2 text-amber-600">
             <Icon name="star" size={18} filled className="mr-1 inline-block align-[-3px]" />{p.rating}
           </p>
-          <p className="mt-4 text-3xl font-bold">{rupees(p.price)}</p>
+          <p className="mt-4 text-3xl font-bold tabular-nums">{rupees(p.price)}</p>
           <p className="mt-4 text-slate-600">{p.description}</p>
 
           <div className="mt-6 flex items-center gap-2 text-sm">
@@ -61,7 +61,7 @@ export default async function ProductPage({ params }: Props) {
 
       {p.related.length > 0 && (
         <section className="mt-16">
-          <h2 className="mb-4 font-display text-2xl font-semibold">You may also like</h2>
+          <h2 className="mb-4 text-2xl font-semibold">You may also like</h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {p.related.map((r) => <ProductCard key={r.id} p={r} />)}
           </div>

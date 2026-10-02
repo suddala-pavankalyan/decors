@@ -17,7 +17,7 @@ export default function WishlistPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16">
-      <h1 className="font-display text-3xl font-bold">Your wishlist</h1>
+      <h1 className="text-3xl font-bold">Your wishlist</h1>
 
       {wishlist.length === 0 ? (
         <div className="mt-10 text-center text-slate-500">
@@ -37,8 +37,8 @@ export default function WishlistPage() {
                   {w.image && <Image src={w.image.url} alt={w.image.alt} fill sizes="25vw" className="object-cover" />}
                 </div>
                 <div className="p-4">
-                  <Link href={`/products/${w.id}`} className="font-display font-semibold hover:underline">{w.name}</Link>
-                  <p className="mt-1 font-bold">{rupees(w.price)}</p>
+                  <Link href={`/products/${w.id}`} className="font-semibold hover:underline">{w.name}</Link>
+                  <p className="mt-1 font-bold tabular-nums">{rupees(w.price)}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <button type="button"
                       onClick={() => addToCart({ ...w, colorName: '', tags: [], rating: 0, description: '' })}

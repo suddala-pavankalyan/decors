@@ -19,7 +19,7 @@ export default function CartPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 pb-16">
-      <h1 className="font-display text-3xl font-bold">Your cart</h1>
+      <h1 className="text-3xl font-bold">Your cart</h1>
 
       {cart.length === 0 ? (
         <div className="mt-10 text-center text-slate-500">
@@ -53,7 +53,7 @@ export default function CartPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">{rupees(l.price * l.qty)}</p>
+                    <p className="font-bold tabular-nums">{rupees(l.price * l.qty)}</p>
                     <button type="button" onClick={() => remove(l.id)} className="mt-2 text-xs text-rose-500 hover:underline">
                       Remove
                     </button>
@@ -66,7 +66,7 @@ export default function CartPage() {
           <aside className="h-fit rounded-2xl bg-white p-5 shadow md:sticky md:top-4">
             <h2 className="font-semibold">Order summary</h2>
             <div className="mt-3 flex justify-between text-sm">
-              <span>Subtotal</span><span className="font-bold">{rupees(subtotal)}</span>
+              <span>Subtotal</span><span className="font-bold tabular-nums">{rupees(subtotal)}</span>
             </div>
             <p className="mt-1 text-xs text-slate-500">Shipping and tax are calculated at checkout.</p>
             <Link href="/checkout"

@@ -21,7 +21,7 @@ function SectionTitle({ kicker, title, note }: { kicker: string; title: string; 
   return (
     <div className="mb-8 max-w-2xl">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-600">{kicker}</p>
-      <h2 className="mt-1 font-display text-3xl font-bold sm:text-4xl">{title}</h2>
+      <h2 className="mt-1 text-3xl font-bold sm:text-4xl">{title}</h2>
       {note && <p className="mt-2 text-slate-500">{note}</p>}
     </div>
   );
@@ -51,7 +51,7 @@ export default async function Home() {
             <span className="inline-block rounded-full bg-fuchsia-50 px-3.5 py-1.5 text-xs font-semibold text-fuchsia-700">
               The Decors exhibition · Cards · Gifts · Decor · Paints
             </span>
-            <h1 className="mt-5 font-display text-4xl font-bold leading-[1.1] sm:text-5xl xl:text-6xl">
+            <h1 className="mt-5 text-4xl font-extrabold leading-[1.08] sm:text-5xl xl:text-6xl">
               Step into a world of <span className="text-spectrum">colour</span>
             </h1>
             <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-500">
@@ -94,7 +94,7 @@ export default async function Home() {
                   className="group flex h-full min-h-64 flex-col rounded-3xl p-6 shadow-lg shadow-slate-900/10 transition duration-300 hover:-translate-y-1.5 hover:shadow-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuchsia-500"
                   style={{ background: h.bg, color: h.fg }}>
                   <span className="text-xs font-semibold uppercase tracking-[0.2em] opacity-80">Hall {String(i + 1).padStart(2, '0')}</span>
-                  <h3 className="mt-2 font-display text-2xl font-bold">{h.name}</h3>
+                  <h3 className="mt-2 text-2xl font-bold">{h.name}</h3>
                   <p className="mt-1 text-sm opacity-90">{h.blurb}</p>
                   <div className="mt-auto pt-6">
                     {swatches.length > 0 && (
@@ -174,7 +174,7 @@ export default async function Home() {
       <section className="mx-auto mt-24 max-w-7xl px-4">
         <Reveal>
           <div className="rounded-[2rem] border border-orange-100 bg-white px-6 py-12 text-center shadow-xl shadow-fuchsia-900/5">
-            <h2 className="font-display text-3xl font-bold sm:text-4xl">Found something you love?</h2>
+            <h2 className="text-3xl font-bold sm:text-4xl">Found something you love?</h2>
             <p className="mx-auto mt-2 max-w-lg text-slate-500">Browse the full collection and narrow it down by colour, price, occasion and style.</p>
             <Link href="/shop" className="mt-6 inline-block rounded-full bg-spectrum px-8 py-3 font-semibold text-white shadow-md shadow-fuchsia-500/25 transition hover:scale-105">
               Browse the collection

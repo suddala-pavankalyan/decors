@@ -68,7 +68,7 @@ function ProductsTable() {
     <main className="mx-auto max-w-6xl px-4 pb-16">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-bold">Products</h1>
+          <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-sm text-slate-500">{items ? `${total} ${filter.trim() ? 'match' : 'in the catalog'}` : 'Loading…'}</p>
         </div>
         <Link href="/admin/products/new"
@@ -96,7 +96,7 @@ function ProductsTable() {
                 {p.category.replace('-', ' ')} · {p.images.length} photo{p.images.length === 1 ? '' : 's'}
               </p>
             </div>
-            <p className="w-24 text-right font-bold">{rupees(p.price)}</p>
+            <p className="w-24 text-right font-bold tabular-nums">{rupees(p.price)}</p>
             <div className="flex items-center gap-2">
               <Link href={`/admin/products/${p.id}`} aria-label={`Edit ${p.name}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 text-sm font-medium hover:border-fuchsia-300">

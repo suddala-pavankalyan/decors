@@ -17,7 +17,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
   if (user.role !== 'ADMIN') {
     return (
       <main className="mx-auto max-w-md p-10 text-center">
-        <h1 className="font-display text-2xl font-bold">Admins only</h1>
+        <h1 className="text-2xl font-bold">Admins only</h1>
         <p className="mt-2 text-slate-600">Your account doesn’t have access to this area.</p>
         <Link href="/shop" className="mt-4 inline-block text-fuchsia-600 hover:underline">Back to the shop</Link>
       </main>

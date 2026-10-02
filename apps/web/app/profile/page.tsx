@@ -11,7 +11,7 @@ const field = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2
 function Card({ title, icon, children }: { title: string; icon: IconName; children: React.ReactNode }) {
   return (
     <section className="rounded-3xl bg-white/80 p-6 shadow-xl">
-      <h2 className="mb-4 flex items-center gap-2 font-display text-xl font-bold"><Icon name={icon} size={22} />{title}</h2>
+      <h2 className="mb-4 flex items-center gap-2 text-xl font-bold"><Icon name={icon} size={22} />{title}</h2>
       {children}
     </section>
   );
@@ -143,7 +143,7 @@ export default function ProfilePage() {
         <div className="flex flex-wrap items-center gap-5">
           <Avatar name={user.name} size={72} />
           <div className="min-w-0">
-            <h1 className="truncate font-display text-3xl font-bold">{user.name}</h1>
+            <h1 className="truncate text-3xl font-bold">{user.name}</h1>
             <p className="truncate text-slate-500">{user.email}</p>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full bg-fuchsia-50 px-2.5 py-1 font-semibold text-fuchsia-700">{user.role === 'ADMIN' ? 'Admin' : 'Member'}</span>

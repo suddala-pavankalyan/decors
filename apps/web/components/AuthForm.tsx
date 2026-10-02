@@ -35,7 +35,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <motion.main initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-md px-4 py-10">
       <form onSubmit={submit} className="space-y-4 rounded-3xl bg-white/80 p-8 shadow-xl backdrop-blur">
-        <h1 className="font-display text-3xl font-bold">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
+        <h1 className="text-3xl font-bold">{isLogin ? 'Welcome back' : 'Create your account'}</h1>
         {!isLogin && (
           <label className="block text-sm font-medium">Name
             <input className={`${input} mt-1`} value={name} onChange={(e) => setName(e.target.value)}

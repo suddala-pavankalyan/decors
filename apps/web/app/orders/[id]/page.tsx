@@ -39,16 +39,16 @@ export default function OrderPage() {
     <main className="mx-auto max-w-2xl px-4 pb-16">
       <div className={`rounded-3xl p-6 text-center ${paid ? 'bg-emerald-50' : 'bg-amber-50'}`}>
         <Icon name={paid ? 'sparkle' : 'clock'} size={44} className={`mx-auto ${paid ? 'text-emerald-600' : 'text-amber-600'}`} />
-        <h1 className="mt-2 font-display text-2xl font-bold">{paid ? 'Thank you! Your order is confirmed' : 'Waiting for payment confirmation'}</h1>
+        <h1 className="mt-2 text-2xl font-bold">{paid ? 'Thank you! Your order is confirmed' : 'Waiting for payment confirmation'}</h1>
         <p className="mt-1 text-sm text-slate-600">Order {order.id}{order.razorpayPaymentId ? ` · Payment ${order.razorpayPaymentId}` : ''}</p>
       </div>
       <ul className="mt-6 space-y-2 rounded-2xl bg-white p-4 shadow">
         {order.items.map((i) => (
           <li key={i.id} className="flex justify-between text-sm">
-            <span>{i.name} × {i.qty}</span><span>{fromPaise(i.unitPricePaise * i.qty)}</span>
+            <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
           </li>
         ))}
-        <li className="flex justify-between border-t pt-2 font-bold"><span>Total</span><span>{fromPaise(order.amount)}</span></li>
+        <li className="flex justify-between border-t pt-2 font-bold"><span>Total</span><span className="tabular-nums">{fromPaise(order.amount)}</span></li>
       </ul>
       <section className="mt-4 rounded-2xl bg-white p-4 text-sm shadow">
         <h2 className="font-semibold">Delivering to</h2>

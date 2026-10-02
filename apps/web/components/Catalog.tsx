@@ -138,7 +138,7 @@ export default function Catalog({ initialFacets, initialPage, initialFilters }: 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16">
     <div className="mb-6">
-      <h1 className="font-display text-4xl font-bold">The <span className="text-spectrum">collection</span></h1>
+      <h1 className="text-4xl font-extrabold">The <span className="text-spectrum">collection</span></h1>
       <p className="mt-1 text-slate-500" aria-live="polite">
         {total} piece{total === 1 ? '' : 's'}{filters.q.trim() ? <> for “{filters.q.trim()}”</> : null}
       </p>

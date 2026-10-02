@@ -19,9 +19,9 @@ export default function ExhibitCard({ p, index }: { p: Product; index: number })
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             No. {String(index + 1).padStart(2, '0')} · {p.category.replace('-', ' ')}
           </p>
-          <h3 className="mt-0.5 font-display text-lg font-semibold leading-snug">{p.name}</h3>
+          <h3 className="mt-0.5 text-lg font-semibold leading-snug">{p.name}</h3>
           <div className="mt-1 flex items-center justify-between">
-            <span className="font-bold">{rupees(p.price)}</span>
+            <span className="font-bold tabular-nums">{rupees(p.price)}</span>
             <span className="inline-flex items-center gap-1 text-sm text-amber-600">
               <Icon name="star" size={14} filled />{p.rating}
             </span>
