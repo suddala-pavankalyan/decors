@@ -4,7 +4,7 @@ import { API } from '@/lib/api';
 import * as account from '@/lib/account';
 import { useStore } from '@/lib/store';
 
-export interface User { id: string; email: string; name: string; role: 'USER' | 'ADMIN' }
+export interface User { id: string; email: string; name: string; role: 'USER' | 'ADMIN'; createdAt: string }
 
 interface AuthState {
   user: User | null;
@@ -14,11 +14,17 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateName: (name: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
-async function call(path: string, body?: unknown): Promise<Response> {
+async function call(
+  path: string,
+  body?: unknown,
+  method: 'GET' | 'POST' | 'PATCH' = body === undefined && path === 'me' ? 'GET' : 'POST',
+): Promise<Response> {
   return fetch(`${API}/auth/${path}`, {
-    method: body === undefined && path === 'me' ? 'GET' : 'POST',
+    method,
     credentials: 'include',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -87,4 +93,8 @@ export const useAuth = create<AuthState>((set) => ({
     useStore.getState().goOffline();
     set({ user: null });
   },
+  updateName: async (name) => set({ user: await readUser(await call('me', { name }, 'PATCH')) }),
+  // The server signs out every other device and re-issues this one's cookie.
+  changePassword: async (currentPassword, newPassword) =>
+    set({ user: await readUser(await call('change-password', { currentPassword, newPassword })) }),
 }));

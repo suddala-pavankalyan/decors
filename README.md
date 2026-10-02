@@ -18,6 +18,8 @@ npm run dev:web   # http://localhost:3000
 
 Accounts: email + password (bcrypt), JWT in an httpOnly cookie. Endpoints: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. Login/register are rate-limited.
 
+Profile: the avatar menu in the header leads to `/profile` (change name, change password) and holds Log out. Changing the password signs out every other device. Endpoints: `PATCH /auth/me`, `POST /auth/change-password`.
+
 Cart and wishlist: stored in the browser for guests; when logged in they are saved to your account (`/account/*` endpoints) and guest items are merged in at login.
 
 API: `GET /products?q=&categories=a,b&colors=Gold&tags=wedding&maxPrice=100&sort=price-asc|price-desc|rating`, `GET /products/facets`, `GET /products/:id` (with images + related).

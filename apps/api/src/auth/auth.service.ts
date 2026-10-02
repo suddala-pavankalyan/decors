@@ -1,16 +1,20 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RegisterDto } from './auth.dto';
+import { ChangePasswordDto, LoginDto, RegisterDto, UpdateProfileDto } from './auth.dto';
 
 export interface PublicUser {
   id: string;
   email: string;
   name: string;
   role: 'USER' | 'ADMIN';
+  createdAt: Date;
 }
+
+type UserRow = { id: string; email: string; name: string; role: 'USER' | 'ADMIN'; createdAt: Date; tokenVersion: number };
+const toPublic = (u: UserRow): PublicUser => ({ id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.createdAt });
 
 // Compared against when the email is unknown, so login timing doesn't reveal which emails exist.
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
@@ -44,13 +48,34 @@ export class AuthService {
   async me(id: string): Promise<PublicUser> {
     const u = await this.prisma.user.findUnique({ where: { id } });
     if (!u) throw new UnauthorizedException();
-    return { id: u.id, email: u.email, name: u.name, role: u.role };
+    return toPublic(u);
   }
 
-  private issue(u: { id: string; email: string; name: string; role: 'USER' | 'ADMIN' }) {
-    return {
-      user: { id: u.id, email: u.email, name: u.name, role: u.role },
-      token: this.jwt.sign({ sub: u.id }),
-    };
+  async updateProfile(id: string, dto: UpdateProfileDto): Promise<PublicUser> {
+    return toPublic(await this.prisma.user.update({ where: { id }, data: { name: dto.name } }));
+  }
+
+  /**
+   * Changes the password and signs out every other session (by bumping tokenVersion).
+   * Returns a fresh token so the session that made the change stays logged in.
+   */
+  async changePassword(id: string, dto: ChangePasswordDto): Promise<{ user: PublicUser; token: string }> {
+    const u = await this.prisma.user.findUnique({ where: { id } });
+    if (!u) throw new UnauthorizedException();
+    if (!(await bcrypt.compare(dto.currentPassword, u.passwordHash))) {
+      throw new BadRequestException('Your current password is incorrect');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('Choose a new password that is different from the current one');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { passwordHash: await bcrypt.hash(dto.newPassword, 10), tokenVersion: { increment: 1 } },
+    });
+    return this.issue(updated);
+  }
+
+  private issue(u: UserRow) {
+    return { user: toPublic(u), token: this.jwt.sign({ sub: u.id, tv: u.tokenVersion }) };
   }
 }

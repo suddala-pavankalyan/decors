@@ -23,3 +23,17 @@ export class LoginDto {
   @IsString() @MaxLength(72)
   password: string;
 }
+
+export class UpdateProfileDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString() @MinLength(1) @MaxLength(80)
+  name: string;
+}
+
+export class ChangePasswordDto {
+  @IsString() @MaxLength(72)
+  currentPassword: string;
+
+  @IsString() @MinLength(8) @MaxLength(72)
+  newPassword: string;
+}
