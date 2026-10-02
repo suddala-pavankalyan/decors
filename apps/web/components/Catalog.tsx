@@ -31,7 +31,7 @@ export default function Catalog() {
   if (!facets) return <p className="p-10 text-center">Loading…</p>;
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 pb-16 lg:grid-cols-[280px_1fr]">
+    <div className="mx-auto grid max-w-7xl gap-6 px-4 pb-16 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
       <div className="lg:sticky lg:top-4 lg:self-start">
         <FilterSidebar facets={facets} filters={filters} onChange={setFilters} />
       </div>
@@ -40,10 +40,10 @@ export default function Catalog() {
           <input
             placeholder="Search cards, decor, paints…" value={filters.q}
             onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-            className="flex-1 rounded-full border border-slate-200 bg-white px-5 py-2 outline-none focus:border-fuchsia-400"
+            className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-5 py-2 outline-none focus:border-fuchsia-400"
           />
           <select value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-            className="rounded-full border border-slate-200 bg-white px-4">
+            className="w-32 shrink-0 rounded-full border border-slate-200 bg-white px-3 sm:w-auto sm:px-4">
             <option value="">Sort</option>
             <option value="price-asc">Price: low to high</option>
             <option value="price-desc">Price: high to low</option>
