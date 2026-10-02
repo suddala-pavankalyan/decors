@@ -3,4 +3,4 @@ dist
 .next
 .env
 *.tsbuildinfo
-uploads/
+/apps/api/uploads/
