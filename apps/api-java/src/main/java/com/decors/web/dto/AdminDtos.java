@@ -124,4 +124,32 @@ public final class AdminDtos {
       Integer handlingDays,
       @NotNull(message = "blockedPrefixes must be an array") @Size(max = 50, message = "blockedPrefixes must contain no more than 50 elements")
       List<@Pattern(regexp = "^[1-9][0-9]{0,5}$", message = "each blocked prefix must be 1-6 digits") String> blockedPrefixes) {}
+
+  public record RateInput(
+      @NotNull(message = "ratePercent must be an integer number") @Min(value = 0, message = "ratePercent must not be less than 0")
+      @Max(value = 28, message = "ratePercent must not be greater than 28") Integer ratePercent,
+      @NotNull(message = "hsn must be 4-8 digits") @Pattern(regexp = "^[0-9]{4,8}$", message = "hsn must be 4-8 digits") String hsn) {}
+
+  public record BusinessInput(
+      @JsonDeserialize(using = Trim.class) @NotNull(message = "legalName must be a string")
+      @Size(min = 1, max = 120, message = "legalName must be longer than or equal to 1 and shorter than or equal to 120 characters")
+      String legalName,
+      @JsonDeserialize(using = Trim.class) @NotNull(message = "addressLines must be a string")
+      @Size(min = 1, max = 400, message = "addressLines must be longer than or equal to 1 and shorter than or equal to 400 characters")
+      String addressLines,
+      @JsonDeserialize(using = Trim.Upper.class)
+      @Pattern(regexp = "^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$", message = "gstin must be a valid 15-character GSTIN")
+      String gstin,
+      @JsonDeserialize(using = Trim.class) @NotNull(message = "stateName must be a string")
+      @Size(min = 1, max = 40, message = "stateName must be longer than or equal to 1 and shorter than or equal to 40 characters")
+      String stateName,
+      @NotNull(message = "stateCode must be 2 digits") @Pattern(regexp = "^[0-9]{2}$", message = "stateCode must be 2 digits") String stateCode,
+      @JsonDeserialize(using = Trim.class) @jakarta.validation.constraints.Email(message = "contactEmail must be an email")
+      @Size(max = 120, message = "contactEmail must be shorter than or equal to 120 characters")
+      String contactEmail,
+      @JsonDeserialize(using = Trim.Upper.class) @NotNull(message = "invoicePrefix must be 1-3 letters")
+      @Pattern(regexp = "^[A-Z]{1,3}$", message = "invoicePrefix must be 1-3 letters") String invoicePrefix,
+      @NotNull(message = "shippingGstPercent must be an integer number") @Min(value = 0, message = "shippingGstPercent must not be less than 0")
+      @Max(value = 28, message = "shippingGstPercent must not be greater than 28") Integer shippingGstPercent,
+      @NotNull(message = "rates must be an object") java.util.Map<String, @jakarta.validation.Valid RateInput> rates) {}
 }

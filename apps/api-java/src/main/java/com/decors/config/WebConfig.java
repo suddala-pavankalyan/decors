@@ -61,6 +61,7 @@ public class WebConfig implements WebMvcConfigurer {
         .allowedOrigins(props.webOrigin())
         .allowedMethods("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         .allowedHeaders("*")
+        .exposedHeaders("Content-Disposition") // so the website can name downloads (invoices)
         .allowCredentials(true)
         .maxAge(3600);
   }

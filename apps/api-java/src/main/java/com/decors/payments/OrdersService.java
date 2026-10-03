@@ -93,6 +93,7 @@ public class OrdersService {
         i.name = c.product.name;
         i.unitPricePaise = c.product.price * 100;
         i.qty = c.qty;
+        i.category = c.product.category;
         total += (long) i.unitPricePaise * i.qty;
         items.add(i);
       }

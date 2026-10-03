@@ -23,8 +23,10 @@ public class PaymentsController {
   private final RazorpayGateway gateway;
   private final ObjectMapper json;
   private final CancellationService cancellation;
+  private final com.decors.invoice.InvoiceService invoices;
 
-  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json, CancellationService cancellation) {
+  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json, CancellationService cancellation, com.decors.invoice.InvoiceService invoices) {
+    this.invoices = invoices;
     this.cancellation = cancellation;
     this.orders = orders;
     this.gateway = gateway;
@@ -58,6 +60,20 @@ public class PaymentsController {
     orders.get(user, id); // 404 unless it is the caller's own order
     cancellation.cancel(id, "you", dto == null ? null : dto.reason());
     return orders.get(user, id);
+  }
+
+  @GetMapping("/orders/{id}/invoice.pdf") @Authenticated
+  public org.springframework.http.ResponseEntity<byte[]> invoice(@CurrentUser AppUser user, @PathVariable String id) {
+    orders.get(user, id); // 404 unless it is the caller's own order
+    return pdf(invoices.invoice(id));
+  }
+
+  static org.springframework.http.ResponseEntity<byte[]> pdf(com.decors.invoice.InvoiceService.Pdf p) {
+    return org.springframework.http.ResponseEntity.ok()
+        .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+        .header("Content-Disposition", "attachment; filename=\"" + p.filename() + "\"")
+        .header("Cache-Control", "private, no-store")
+        .body(p.bytes());
   }
 
   @GetMapping("/orders/{id}") @Authenticated

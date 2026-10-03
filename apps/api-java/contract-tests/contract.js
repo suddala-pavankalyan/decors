@@ -492,7 +492,7 @@ async function main() {
     await buyer.post('/auth/register', { name: 'Buyer', email: buyerEmail, password: PASSWORD });
     const vm = await mailTo(buyerEmail, 'verify-email', sinkN);
     r = await anon.post('/auth/verify-email', { token: tokenFrom(vm, 'verify-email') });
-    check('buyer email verified', r.status === 200, [r.status, r.text, vm && vm.slice(0, 80)]);
+    check('buyer email verified', r.status === 200, [r.status, r.text, vm && vm.slice(Math.max(0, vm.indexOf('verify-email') - 200), vm.indexOf('verify-email') + 300)]);
 
     r = await buyer.post('/checkout', addr);
     check('checkout with empty cart → 400', r.status === 400 && r.json.message === 'Your cart is empty', r.text);
@@ -926,6 +926,94 @@ async function main() {
     await alice2.put('/admin/shipping', { baseFeePaise: 4900, freeAbovePaise: 99900, originPincode: '560001', handlingDays: 1, blockedPrefixes: [] });
     await db.query(`delete from "Order" where "couponId" in (select id from "Coupon" where code like $1)`, [`%${U}`]);
     await db.query(`delete from "Coupon" where code like $1`, [`%${U}`]);
+
+    // ───── invoices ─────
+    section('invoices');
+    const { execFileSync } = require('child_process');
+    const pdfText = (buf) => { try { return execFileSync('pdftotext', ['-layout', '-', '-'], { input: buf }).toString(); } catch { return null; } };
+    const getPdf = async (browser, path) => {
+      const res = await fetch(BASE + path, { headers: { cookie: browser.cookie } });
+      return { status: res.status, type: res.headers.get('content-type'), disp: res.headers.get('content-disposition'), buf: Buffer.from(await res.arrayBuffer()) };
+    };
+    const GOOD = { legalName: ' Decors Test Pvt Ltd ', addressLines: '1 Test Street\nBengaluru 560001', gstin: '29abcde1234f1z5', stateName: 'Karnataka', stateCode: '29', contactEmail: 'billing@example.test', invoicePrefix: 'dec', shippingGstPercent: 18,
+      rates: { 'wedding-cards': { ratePercent: 12, hsn: '4909' }, 'gift-cards': { ratePercent: 12, hsn: '4909' }, 'wall-decor': { ratePercent: 18, hsn: '8306' }, paints: { ratePercent: 18, hsn: '3208' } } };
+    r = await buyer.get('/admin/business');
+    check('business settings need admin', r.status === 403);
+    r = await alice2.get('/admin/business');
+    check('business defaults', r.status === 200 && r.json.business.gstin === null && r.json.rates['wall-decor'].ratePercent === 18 && r.json.business.invoicePrefix === 'INV', r.text.slice(0, 300));
+    r = await alice2.put('/admin/business', { ...GOOD, gstin: '123' });
+    check('GSTIN validated', r.status === 400 && JSON.stringify(r.json.message).includes('valid 15-character GSTIN'), r.text);
+    r = await alice2.put('/admin/business', { ...GOOD, stateCode: '27' });
+    check('GSTIN must match the state code', r.status === 400 && /must match the state code/.test(r.json.message), r.text);
+    r = await alice2.put('/admin/business', { ...GOOD, invoicePrefix: 'TOOLONG' });
+    check('prefix validated', r.status === 400, r.text);
+    r = await alice2.put('/admin/business', { ...GOOD, rates: { ...GOOD.rates, 'wall-decor': { ratePercent: 40, hsn: '8306' } } });
+    check('rate range validated', r.status === 400, r.text);
+    r = await alice2.put('/admin/business', { ...GOOD, rates: { widgets: { ratePercent: 5, hsn: '1234' } } });
+    check('unknown category refused', r.status === 400 && /unknown category/.test(r.json.message), r.text);
+    r = await alice2.put('/admin/business', GOOD);
+    check('save business', r.status === 200 && r.json.business.gstin === '29ABCDE1234F1Z5' && r.json.business.legalName === 'Decors Test Pvt Ltd' && r.json.business.invoicePrefix === 'DEC', r.text.slice(0, 300));
+
+    const inv = await makePaid();
+    r = await buyer.get(`/orders/${inv.orderId}/invoice.pdf`);
+    check('no invoice before shipping', r.status === 409 && /once your order has shipped/.test(r.json.message), r.text);
+    r = await anon.get(`/orders/${inv.orderId}/invoice.pdf`);
+    check('invoice needs login', r.status === 401);
+    r = await stranger.get(`/orders/${inv.orderId}/invoice.pdf`);
+    check("cannot read someone else's invoice", r.status === 404);
+    r = await buyer.get(`/orders/${paid1.orderId}/invoice.pdf`);
+    check('cancelled order has no invoice', r.status === 409 && /cancelled/.test(r.json.message), r.text);
+    await alice2.post(`/admin/orders/${inv.orderId}/status`, { status: 'PACKED' });
+    await alice2.post(`/admin/orders/${inv.orderId}/status`, { status: 'SHIPPED' });
+    let pdf = await getPdf(buyer, `/orders/${inv.orderId}/invoice.pdf`);
+    const orderNow = (await buyer.get(`/orders/${inv.orderId}`)).json;
+    check('invoice is a PDF download', pdf.status === 200 && pdf.type === 'application/pdf' && pdf.buf.subarray(0, 5).toString() === '%PDF-' && /^attachment; filename="invoice-DEC-\d\d-\d\d-\d{5}\.pdf"$/.test(pdf.disp), [pdf.status, pdf.type, pdf.disp]);
+    const text = pdfText(pdf.buf);
+    const rsText = (paise) => 'Rs. ' + (paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    if (text) {
+      check('invoice shows seller, GSTIN, number and order', /TAX INVOICE/.test(text) && /Decors Test Pvt Ltd/.test(text) && /GSTIN: 29ABCDE1234F1Z5/.test(text) && /DEC\/\d\d-\d\d\/\d{5}/.test(text) && text.includes(inv.orderId), text.slice(0, 600));
+      check('same-state sale shows CGST and SGST', /CGST/.test(text) && /SGST/.test(text) && !/IGST/.test(text), text);
+      check('invoice total equals what was paid', text.includes(rsText(orderNow.amount)), [rsText(orderNow.amount), text.slice(-500)]);
+      check('buyer details are on the invoice', /Asha/.test(text) && /560001/.test(text) && /HSN/.test(text) && /4909|8306|3208/.test(text));
+    } else console.log('  (pdftotext not installed: PDF contents were not inspected)');
+    const numberOf = (t) => (t && t.match(/DEC\/\d\d-\d\d\/(\d{5})/) || [])[1];
+    const again = await getPdf(buyer, `/orders/${inv.orderId}/invoice.pdf`);
+    check('the same invoice number is kept', !text || numberOf(pdfText(again.buf)) === numberOf(text));
+    const adminPdf = await getPdf(alice2, `/admin/orders/${inv.orderId}/invoice.pdf`);
+    check('admin can download it too', adminPdf.status === 200 && adminPdf.buf.subarray(0, 5).toString() === '%PDF-');
+    r = await alice2.get(`/admin/orders/${paid1.orderId}/invoice.pdf`);
+    check('admin: cancelled order has no invoice', r.status === 409);
+    r = await alice2.get('/admin/orders/nope/invoice.pdf');
+    check('admin: unknown order → 404', r.status === 404);
+    r = await buyer.get(`/admin/orders/${inv.orderId}/invoice.pdf`);
+    check('customers cannot use the admin invoice route', r.status === 403);
+    r = await buyer.post(`/orders/${inv.orderId}/cancel`, {});
+    check('a shipped (invoiced) order can no longer be cancelled', r.status === 409);
+
+    // out of state: IGST, and the next number follows on
+    await buyer.put(`/account/cart/${pa.id}`, { qty: 1 });
+    const far = (await checkoutRaw({ ...addr, state: 'Maharashtra', pincode: '400001' })).json;
+    await buyer.post('/checkout/verify', { orderId: far.orderId, razorpay_order_id: far.razorpayOrderId, razorpay_payment_id: `pay_${RUN}_far`, razorpay_signature: hmac(KEY_SECRET, `${far.razorpayOrderId}|pay_${RUN}_far`) });
+    await alice2.post(`/admin/orders/${far.orderId}/status`, { status: 'PACKED' });
+    await alice2.post(`/admin/orders/${far.orderId}/status`, { status: 'SHIPPED' });
+    const farPdf = await getPdf(buyer, `/orders/${far.orderId}/invoice.pdf`);
+    const farText = pdfText(farPdf.buf);
+    check('invoice for the other order downloads', farPdf.status === 200);
+    if (farText) {
+      check('out-of-state sale shows IGST only', /IGST/.test(farText) && !/CGST/.test(farText) && /Place of supply: Maharashtra/.test(farText), farText.slice(0, 700));
+      check('invoice numbers are consecutive', Number(numberOf(farText)) === Number(numberOf(text)) + 1, [numberOf(text), numberOf(farText)]);
+    }
+
+    // a shop without a GSTIN charges no tax
+    await alice2.put('/admin/business', { ...GOOD, gstin: '' });
+    const plain = await makePaid();
+    await alice2.post(`/admin/orders/${plain.orderId}/status`, { status: 'PACKED' });
+    await alice2.post(`/admin/orders/${plain.orderId}/status`, { status: 'SHIPPED' });
+    const plainPdf = await getPdf(buyer, `/orders/${plain.orderId}/invoice.pdf`);
+    check('unregistered shop: invoice downloads', plainPdf.status === 200);
+    const plainText = pdfText(plainPdf.buf);
+    if (plainText) check('unregistered shop: no tax columns and a note', /INVOICE/.test(plainText) && !/TAX INVOICE/.test(plainText) && !/GSTIN/.test(plainText) && !/CGST|IGST/.test(plainText) && /not registered under GST/.test(plainText), plainText.slice(0, 600));
+    await alice2.put('/admin/business', { legalName: 'Decors', addressLines: 'Add your registered address under Admin > Business', gstin: '', stateName: 'Karnataka', stateCode: '29', contactEmail: '', invoicePrefix: 'INV', shippingGstPercent: 18, rates: { 'wedding-cards': { ratePercent: 12, hsn: '4909' }, 'gift-cards': { ratePercent: 12, hsn: '4909' }, 'wall-decor': { ratePercent: 18, hsn: '8306' }, paints: { ratePercent: 18, hsn: '3208' } } });
   }
 
   // ───────────────────────── rate limits ─────────────────────────

@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.*;
 @AdminOnly
 public class AdminOrdersController {
   private final AdminOrdersService service;
+  private final com.decors.invoice.InvoiceService invoices;
 
-  public AdminOrdersController(AdminOrdersService service) {
+  public AdminOrdersController(AdminOrdersService service, com.decors.invoice.InvoiceService invoices) {
     this.service = service;
+    this.invoices = invoices;
   }
 
   @GetMapping
@@ -45,5 +47,11 @@ public class AdminOrdersController {
   @PostMapping("/{id}/refund")
   public Map<String, Object> retryRefund(@PathVariable String id) {
     return service.retryRefund(id);
+  }
+
+  @GetMapping("/{id}/invoice.pdf")
+  public org.springframework.http.ResponseEntity<byte[]> invoice(@PathVariable String id) {
+    service.get(id); // 404 for unknown orders
+    return PaymentsController.pdf(invoices.invoice(id));
   }
 }

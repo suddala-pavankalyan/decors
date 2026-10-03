@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import AdminGate from '@/components/admin/AdminGate';
 import AdminTabs from '@/components/admin/AdminTabs';
 import Icon from '@/components/Icon';
+import InvoiceButton from '@/components/InvoiceButton';
 import OrderTimeline from '@/components/OrderTimeline';
 import { advanceOrder, cancelOrder, getOrder, retryRefund, type AdminOrder } from '@/lib/adminOrders';
 import { fromPaise } from '@/lib/money';
@@ -137,6 +138,10 @@ function Detail() {
         <p>{order.shipLine1}{order.shipLine2 ? `, ${order.shipLine2}` : ''}</p>
         <p>{order.shipCity}, {order.shipState} {order.shipPincode}</p>
       </section>
+
+      {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+        <div className="mt-4"><InvoiceButton path={`/admin/orders/${order.id}/invoice.pdf`} /></div>
+      )}
 
       <ul className="mt-4 space-y-2 rounded-2xl bg-white p-4 shadow">
         {order.items.map((i) => (

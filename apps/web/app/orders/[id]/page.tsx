@@ -6,6 +6,7 @@ import { cancelOrder, fetchOrder, type Order } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { fromPaise } from '@/lib/money';
 import Icon from '@/components/Icon';
+import InvoiceButton from '@/components/InvoiceButton';
 import OrderTimeline from '@/components/OrderTimeline';
 import { REFUND_LABEL, STATUS_LABEL, canCancel } from '@/lib/orderStatus';
 import { window as dateWindow } from '@/lib/delivery';
@@ -142,6 +143,9 @@ export default function OrderPage() {
           <p className="mt-2 rounded-xl bg-fuchsia-50 px-3 py-2 text-fuchsia-900">Estimated delivery <strong>{dateWindow(order.estimatedFrom, order.estimatedTo)}</strong></p>
         )}
       </section>
+      {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+        <div className="mt-4"><InvoiceButton path={`/orders/${order.id}/invoice.pdf`} /></div>
+      )}
       <Link href="/shop" className="mt-6 inline-block text-fuchsia-600 hover:underline">Continue shopping</Link>
     </main>
   );
