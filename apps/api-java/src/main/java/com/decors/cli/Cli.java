@@ -115,6 +115,7 @@ public class Cli implements ApplicationRunner {
         pr.category = Category.fromSlug(p.category()).orElseThrow();
         pr.price = p.price();
         pr.stock = 25;
+        pr.personalizable = pr.category == Category.WEDDING_CARDS; // names, date and venue can go on wedding cards
         pr.rating = p.rating();
         pr.description = p.description();
         pr.color = color;

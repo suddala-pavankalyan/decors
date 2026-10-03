@@ -6,6 +6,7 @@ import ResendVerification from '@/components/ResendVerification';
 import AddressFields, { EMPTY_ADDRESS } from '@/components/AddressFields';
 import { fetchAddresses, previewCheckout, startCheckout, verifyPayment, type Address, type CheckoutPreview, type SavedAddress } from '@/lib/account';
 import { feeText, isPincode, window as dateWindow } from '@/lib/delivery';
+import { problem as detailsProblem } from '@/lib/personalize';
 import { useAuth } from '@/lib/auth';
 import { fromPaise, rupees } from '@/lib/money';
 import { loadRazorpay } from '@/lib/razorpay';
@@ -94,6 +95,7 @@ export default function CheckoutPage() {
   }
   const totalText = preview ? fromPaise(preview.totalPaise) : rupees(subtotal);
   const undeliverable = preview?.delivery?.serviceable === false;
+  const needDetails = cart.filter((l) => l.personalizable && (!l.personalization || detailsProblem(l.personalization)));
 
   const isNew = !saved.some((a) => sameAddress(a, addr));
   const choose = (a: SavedAddress | null) => { setPicked(a?.id ?? null); setAddr(a ?? EMPTY_ADDRESS); };
@@ -188,8 +190,13 @@ export default function CheckoutPage() {
             Save this address for next time
           </label>
         )}
+        {needDetails.length > 0 && (
+          <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Add the card details for {needDetails.map((l) => l.name).join(', ')} <Link href="/cart" className="font-semibold underline">in your cart</Link> first.
+          </p>
+        )}
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
-        <button type="submit" disabled={busy || !user.emailVerified || undeliverable}
+        <button type="submit" disabled={busy || !user.emailVerified || undeliverable || needDetails.length > 0}
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-3 font-semibold text-white disabled:opacity-60">
           {busy ? 'Opening payment…' : `Pay ${totalText}`}
         </button>

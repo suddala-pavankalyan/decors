@@ -40,12 +40,16 @@ export default function WishlistPage() {
                   <Link href={`/products/${w.id}`} className="font-semibold hover:underline">{w.name}</Link>
                   <p className="mt-1 font-bold tabular-nums">{rupees(w.price)}</p>
                   <div className="mt-3 flex items-center justify-between">
+                    {w.personalizable ? (
+                      <Link href={`/products/${w.id}`} className="rounded-full px-4 py-1.5 text-sm font-semibold text-white" style={{ background: w.color }}>Personalise</Link>
+                    ) : (
                     <button type="button" disabled={w.stock === 0}
-                      onClick={() => addToCart({ ...w, stock: w.stock ?? 20, colorName: '', tags: [], rating: 0, description: '' })}
+                      onClick={() => addToCart({ ...w, stock: w.stock ?? 20, personalizable: w.personalizable ?? false, colorName: '', tags: [], rating: 0, description: '' })}
                       className="rounded-full px-4 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:!bg-slate-300" style={{ background: w.color }}>
                       {w.stock === 0 ? 'Sold out' : cart.some((l) => l.id === w.id) ? 'Add another' : 'Add to cart'}
                     </button>
-                    <button type="button" onClick={() => toggle({ ...w, stock: w.stock ?? 20, colorName: '', tags: [], rating: 0, description: '' })}
+                    )}
+                    <button type="button" onClick={() => toggle({ ...w, stock: w.stock ?? 20, personalizable: w.personalizable ?? false, colorName: '', tags: [], rating: 0, description: '' })}
                       className="text-xs text-rose-500 hover:underline">Remove</button>
                   </div>
                 </div>

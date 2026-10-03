@@ -307,8 +307,8 @@ async function main() {
   const all = (await anon.get('/products?limit=60')).json.items;
   const [pa, pb, pc] = all;
   // plenty of stock for the products the cart tests use; the real counts are put back at the end
-  savedStock = (await db.query('select id, stock from "Product" where id = any($1)', [[pa.id, pb.id, pc.id]])).rows;
-  await db.query('update "Product" set stock = 1000 where id = any($1)', [[pa.id, pb.id, pc.id]]);
+  savedStock = (await db.query('select id, stock, personalizable from "Product" where id = any($1)', [[pa.id, pb.id, pc.id]])).rows;
+  await db.query('update "Product" set stock = 1000, personalizable = false where id = any($1)', [[pa.id, pb.id, pc.id]]);
   r = await anon.get('/account/state');
   check('state needs login', r.status === 401);
   r = await alice2.get('/account/state');
@@ -413,13 +413,15 @@ async function main() {
   r = await alice2.get('/admin/products?q=paint');
   check('admin search finds category by name', r.status === 200 && r.json.items.length > 0 && r.json.items.every((p) => p.category === 'paints' || /paint/i.test(p.name)), r.text.slice(0, 200));
 
-  const body = { name: `  Contract Card ${RUN} `, category: 'gift-cards', price: 77, stock: 10, description: ' A test card ', rating: 4.5, colorName: `Contract Teal ${RUN}`, colorHex: '#0d9488', tags: ['  Test ', 'test', 'Contract-Tag', ''] };
+  const body = { name: `  Contract Card ${RUN} `, category: 'gift-cards', price: 77, stock: 10, personalizable: false, description: ' A test card ', rating: 4.5, colorName: `Contract Teal ${RUN}`, colorHex: '#0d9488', tags: ['  Test ', 'test', 'Contract-Tag', ''] };
   r = await alice2.post('/admin/products', { ...body, category: 'nope' });
   check('create invalid category → 400', r.status === 400, r.text);
   r = await alice2.post('/admin/products', { ...body, rating: 4.55 });
   check('create rating with 2 decimals → 400', r.status === 400, r.text);
   r = await alice2.post('/admin/products', { ...body, stock: -1 });
   check('create negative stock → 400', r.status === 400 && JSON.stringify(r.json.message).includes('stock must not be less than 0'), r.text);
+  r = await alice2.post('/admin/products', { ...body, personalizable: undefined });
+  check('create without the personalizable flag → 400', r.status === 400, r.text);
   r = await alice2.post('/admin/products', { ...body, price: 0 });
   check('create price 0 → 400', r.status === 400);
   r = await alice2.post('/admin/products', { ...body, colorHex: 'teal' });
@@ -935,7 +937,7 @@ async function main() {
 
     // ───── stock ─────
     section('stock');
-    const mkStock = async (name, stock) => (await alice2.post('/admin/products', { name, category: 'gift-cards', price: 60, stock, description: 'stock test', rating: 4, colorName: `Stock Teal ${RUN}`, colorHex: '#0d9488', tags: [] })).json;
+    const mkStock = async (name, stock) => (await alice2.post('/admin/products', { name, category: 'gift-cards', price: 60, stock, personalizable: false, description: 'stock test', rating: 4, colorName: `Stock Teal ${RUN}`, colorHex: '#0d9488', tags: [] })).json;
     const sp = await mkStock(`Stock Test ${RUN}`, 3);
     const stockOf = async (id) => (await anon.get(`/products/${id}`)).json.stock;
     check('product detail shows stock', (await stockOf(sp.id)) === 3);
@@ -1026,6 +1028,72 @@ async function main() {
     await alice2.del(`/admin/products/${sp.id}`);
     await alice2.del(`/admin/products/${out.id}`);
     await db.query(`delete from "Color" where name = $1`, [`Stock Teal ${RUN}`]);
+
+    // ───── personalised cards ─────
+    section('personalised cards');
+    const card = (await alice2.post('/admin/products', { name: `Personal Card ${RUN}`, category: 'wedding-cards', price: 40, stock: 500, personalizable: true, description: 'p', rating: 4, colorName: `Personal Rose ${RUN}`, colorHex: '#e11d48', tags: [] })).json;
+    check('admin can mark a product personalisable', card.personalizable === true, card);
+    r = await anon.get(`/products/${card.id}`);
+    check('product detail says it can be personalised', r.json.personalizable === true && (await anon.get(`/products/${pa.id}`)).json.personalizable === false);
+    const future = new Date(Date.now() + 120 * 86400_000).toISOString().slice(0, 10);
+    const D = { partnerOne: ' Asha ', partnerTwo: 'Rohan', eventDate: future, venue: ' Taj Hotel, Bengaluru ', note: ' With love ' };
+    await buyer.del('/account/cart');
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2, personalization: { ...D, eventDate: '2020-01-01' } });
+    check('past event date refused', r.status === 400 && /cannot be in the past/.test(r.json.message), r.text);
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2, personalization: { ...D, eventDate: 'tomorrow' } });
+    check('bad date refused', r.status === 400, r.text);
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2, personalization: { ...D, partnerOne: '' } });
+    check('names are required', r.status === 400 && JSON.stringify(r.json.message).includes('partnerOne must be longer'), r.text);
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2, personalization: { ...D, venue: 'x'.repeat(121) } });
+    check('venue length limited', r.status === 400, r.text);
+    r = await buyer.put(`/account/cart/${pa.id}`, { qty: 1, personalization: D });
+    check('plain products cannot be personalised', r.status === 400 && /cannot be personalised/.test(r.json.message), r.text);
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2 });
+    check('a personalised product can sit in the cart without details yet', r.status === 204);
+    r = await buyer.del('/account/cart'); // (cart cleared) then checkout attempt with an empty-detail line
+    await buyer.put(`/account/cart/${card.id}`, { qty: 2 });
+    r = await checkoutRaw(addr);
+    check('checkout needs the card details', r.status === 400 && r.json.message === `Add the card details for Personal Card ${RUN} before checking out`, r.text);
+    r = await buyer.put(`/account/cart/${card.id}`, { qty: 2, personalization: D });
+    check('save the details', r.status === 204, r.text);
+    r = await buyer.get('/account/state');
+    const line = r.json.cart.find((l) => l.product.id === card.id);
+    check('cart returns the cleaned-up details', line.qty === 2 && line.personalization.partnerOne === 'Asha' && line.personalization.venue === 'Taj Hotel, Bengaluru' && line.personalization.note === 'With love' && line.personalization.eventDate === future && line.product.personalizable === true, line);
+    await buyer.put(`/account/cart/${card.id}`, { qty: 3 });
+    r = await buyer.get('/account/state');
+    check('changing the quantity keeps the details', r.json.cart[0].qty === 3 && r.json.cart[0].personalization.partnerTwo === 'Rohan');
+    await db.query(`update "CartItem" set personalization = jsonb_set(personalization, '{eventDate}', '"2020-05-05"') where "productId" = $1`, [card.id]);
+    r = await checkoutRaw(addr);
+    check('details whose date has passed must be updated', r.status === 400 && /need updating/.test(r.json.message), r.text);
+    await buyer.put(`/account/cart/${card.id}`, { qty: 3, personalization: D });
+    r = await checkoutRaw(addr);
+    check('checkout with details works', r.status === 200, r.text);
+    const pOrder = r.json;
+    r = await buyer.get(`/orders/${pOrder.orderId}`);
+    const pItem = r.json.items.find((i) => i.productId === card.id);
+    check('order keeps a copy of the details', pItem.personalization.partnerOne === 'Asha' && pItem.personalization.eventDate === future && pItem.personalization.note === 'With love', pItem);
+    await buyer.put(`/account/cart/${card.id}`, { qty: 1, personalization: { ...D, partnerOne: 'Changed' } });
+    r = await buyer.get(`/orders/${pOrder.orderId}`);
+    check('later cart edits do not change the order', r.json.items.find((i) => i.productId === card.id).personalization.partnerOne === 'Asha');
+    r = await alice2.get(`/admin/orders/${pOrder.orderId}`);
+    check('admin sees the details to print', r.json.items.find((i) => i.productId === card.id).personalization.venue === 'Taj Hotel, Bengaluru');
+    r = await buyer.get('/orders');
+    check('orders list carries them too', r.json.find((o) => o.id === pOrder.orderId).items.some((i) => i.personalization));
+    await buyer.del('/account/cart');
+    await buyer.post(`/orders/${pOrder.orderId}/cancel`, {});
+
+    // guest cart merged at login
+    r = await buyer.post('/account/merge', { cart: [{ productId: card.id, qty: 2, personalization: D }, { productId: pa.id, qty: 1 }], wishlist: [] });
+    const mc = r.json.cart.find((l) => l.product.id === card.id);
+    check('merge brings the details along', mc && mc.personalization && mc.personalization.partnerOne === 'Asha', r.text.slice(0, 300));
+    check('merge does not invent details for plain products', r.json.cart.find((l) => l.product.id === pa.id).personalization === null);
+    await buyer.del('/account/cart');
+    r = await buyer.post('/account/merge', { cart: [{ productId: card.id, qty: 1, personalization: { ...D, eventDate: '2020-01-01' } }], wishlist: [] });
+    check('merge keeps the item but drops details that no longer make sense', r.status === 200 && r.json.cart.length === 1 && r.json.cart[0].personalization === null, r.text.slice(0, 300));
+    await buyer.del('/account/cart');
+    await db.query(`delete from "Order" where id in (select "orderId" from "OrderItem" where "productId" = $1)`, [card.id]);
+    await alice2.del(`/admin/products/${card.id}`);
+    await db.query(`delete from "Color" where name = $1`, [`Personal Rose ${RUN}`]);
 
     // ───── invoices ─────
     section('invoices');
@@ -1131,7 +1199,7 @@ main()
   .catch((e) => { console.log('\nCRASH', e); failures.push('crash'); })
   .finally(async () => {
     try {
-      for (const row of savedStock) await db.query('update "Product" set stock = $2 where id = $1', [row.id, row.stock]);
+      for (const row of savedStock) await db.query('update "Product" set stock = $2, personalizable = $3 where id = $1', [row.id, row.stock, row.personalizable]);
     } catch (e) { console.log('could not restore stock:', e.message); }
     try {
       await db.query(`delete from "Order" where "userId" in (select id from "User" where email = any($1))`, [emails]);

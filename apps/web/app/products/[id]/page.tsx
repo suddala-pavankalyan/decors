@@ -9,6 +9,7 @@ import { fetchProduct } from '@/lib/api';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
 import DeliveryCheck from '@/components/DeliveryCheck';
+import PersonalizeSection from '@/components/PersonalizeSection';
 import { stockLabel } from '@/lib/stock';
 
 type Props = { params: { id: string } };
@@ -54,16 +55,22 @@ export default async function ProductPage({ params }: Props) {
           </div>
 
           <div className="mt-8 flex items-center gap-3">
-            <AddToCartButton
-              p={p}
-              label="Add to cart"
-              className="rounded-full px-8 py-3 font-semibold text-white shadow-lg"
-            />
+            {p.personalizable && p.stock > 0 ? (
+              <a href="#personalise" className="rounded-full px-8 py-3 font-semibold text-white shadow-lg" style={{ background: p.color }}>Personalise this card</a>
+            ) : (
+              <AddToCartButton
+                p={p}
+                label="Add to cart"
+                className="rounded-full px-8 py-3 font-semibold text-white shadow-lg"
+              />
+            )}
             <WishButton p={p} className="border border-slate-200" />
           </div>
           <DeliveryCheck />
         </section>
       </div>
+
+      {p.personalizable && <PersonalizeSection p={p} />}
 
       {p.related.length > 0 && (
         <section className="mt-16">

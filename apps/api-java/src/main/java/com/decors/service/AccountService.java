@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountService {
-  public record CartLineView(int qty, ProductSummary product) {}
+  public record CartLineView(int qty, com.fasterxml.jackson.databind.JsonNode personalization, ProductSummary product) {}
   public record State(List<CartLineView> cart, List<ProductSummary> wishlist) {}
 
   private final CartItemRepository cart;
@@ -33,9 +33,11 @@ public class AccountService {
   private final ProductViews views;
   private final JdbcClient jdbc;
   private final jakarta.persistence.EntityManager em;
+  private final PersonalizationService personalization;
 
   public AccountService(CartItemRepository cart, WishlistItemRepository wishlist, ProductRepository products,
-      ProductViews views, JdbcClient jdbc, jakarta.persistence.EntityManager em) {
+      ProductViews views, JdbcClient jdbc, jakarta.persistence.EntityManager em, PersonalizationService personalization) {
+    this.personalization = personalization;
     this.em = em;
     this.cart = cart;
     this.wishlist = wishlist;
@@ -54,20 +56,29 @@ public class AccountService {
     wished.forEach(w -> all.add(w.product));
     Map<String, ProductSummary> byId = new HashMap<>();
     for (ProductSummary s : views.summaries(all.stream().distinct().toList())) byId.put(s.id(), s);
+    // The details typed for personalised cards are kept as JSON next to the quantity.
+    Map<String, String> saved = new HashMap<>();
+    jdbc.sql("select \"productId\", personalization::text as p from \"CartItem\" where \"userId\" = :u and personalization is not null")
+        .param("u", userId).query((rs, n) -> Map.entry(rs.getString(1), rs.getString(2))).list().forEach(e -> saved.put(e.getKey(), e.getValue()));
     return new State(
-        lines.stream().map(l -> new CartLineView(l.qty, byId.get(l.product.id))).toList(),
+        lines.stream().map(l -> new CartLineView(l.qty, personalization.read(saved.get(l.product.id)), byId.get(l.product.id))).toList(),
         wished.stream().map(w -> byId.get(w.product.id)).toList());
   }
 
   @Transactional
-  public void setQty(String userId, String productId, int qty) {
+  public void setQty(String userId, String productId, int qty, AccountDtos.Personalization details) {
     if (qty == 0) {
       jdbc.sql("delete from \"CartItem\" where \"userId\" = :u and \"productId\" = :p").param("u", userId).param("p", productId).update();
       return;
     }
     Product p = products.findById(productId).orElseThrow(() -> ApiException.notFound("Product not found"));
     if (qty > p.stock) throw ApiException.conflict(StockMessages.shortage(p.name, p.stock));
-    upsertCart(userId, productId, qty);
+    String stored = null;
+    if (details != null) {
+      if (!p.personalizable) throw ApiException.badRequest(p.name + " cannot be personalised");
+      stored = personalization.validate(details);
+    }
+    upsertCart(userId, productId, qty, stored);
   }
 
   @Transactional
@@ -96,7 +107,17 @@ public class AccountService {
         : products.findAllById(ids).stream().map(p -> p.id).collect(Collectors.toSet());
 
     Map<String, Integer> guest = new LinkedHashMap<>();
+    Map<String, String> guestDetails = new HashMap<>();
+    Map<String, Product> byProduct = new HashMap<>();
+    if (!ids.isEmpty()) products.findAllById(ids).forEach(p -> byProduct.put(p.id, p));
     for (var l : dto.cart()) {
+      if (l.personalization() != null && known.contains(l.productId()) && byProduct.get(l.productId()).personalizable) {
+        try {
+          guestDetails.put(l.productId(), personalization.validate(l.personalization()));
+        } catch (ApiException e) {
+          // Details that no longer make sense (such as a date now in the past) are dropped; the customer is asked again at checkout.
+        }
+      }
       if (known.contains(l.productId())) guest.merge(l.productId(), l.qty(), (a, b) -> Math.min(AccountDtos.MAX_QTY, a + b));
     }
     Map<String, Integer> have = new HashMap<>();
@@ -109,7 +130,7 @@ public class AccountService {
     guest.forEach((pid, qty) -> {
       int want = Math.min(AccountDtos.MAX_QTY, have.getOrDefault(pid, 0) + qty);
       int allowed = Math.min(want, stock.getOrDefault(pid, 0));
-      if (allowed > 0) upsertCart(userId, pid, allowed);
+      if (allowed > 0) upsertCart(userId, pid, allowed, guestDetails.get(pid));
     });
     dto.wishlist().stream().filter(known::contains).distinct().forEach(pid -> insertWish(userId, pid));
     // The upserts above went around JPA, so drop what it cached before reading the result back.
@@ -121,12 +142,14 @@ public class AccountService {
     if (!products.existsById(productId)) throw ApiException.notFound("Product not found");
   }
 
-  private void upsertCart(String userId, String productId, int qty) {
+  /** {@code details} (JSON) replaces the saved personalisation; null leaves what is already there. */
+  private void upsertCart(String userId, String productId, int qty, String details) {
     jdbc.sql("""
-            insert into "CartItem" ("userId", "productId", qty, "updatedAt") values (:u, :p, :q, :t)
-            on conflict ("userId", "productId") do update set qty = excluded.qty, "updatedAt" = excluded."updatedAt"
+            insert into "CartItem" ("userId", "productId", qty, "updatedAt", personalization) values (:u, :p, :q, :t, cast(:d as jsonb))
+            on conflict ("userId", "productId") do update set qty = excluded.qty, "updatedAt" = excluded."updatedAt",
+                   personalization = coalesce(excluded.personalization, "CartItem".personalization)
             """)
-        .param("u", userId).param("p", productId).param("q", qty).param("t", Time.now()).update();
+        .param("u", userId).param("p", productId).param("q", qty).param("t", Time.now()).param("d", details).update();
   }
 
   private void insertWish(String userId, String productId) {

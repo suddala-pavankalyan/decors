@@ -5,6 +5,8 @@ export interface Product {
   image: ProductImage | null;
   /** Units left, at most 20 (above that the exact number is not shown). */
   stock: number;
+  /** Customers can add their own names, date and venue (wedding cards). */
+  personalizable: boolean;
 }
 export interface ProductDetail extends Product { images: ProductImage[]; related: Product[] }
 export interface ProductPage { total: number; items: Product[]; hasMore: boolean }

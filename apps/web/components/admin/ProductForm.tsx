@@ -22,6 +22,7 @@ export default function ProductForm({
   const [category, setCategory] = useState(initial?.category ?? 'wedding-cards');
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
   const [stock, setStock] = useState(initial ? String(initial.stock) : '10');
+  const [personalizable, setPersonalizable] = useState(initial?.personalizable ?? false);
   const [rating, setRating] = useState(initial ? String(initial.rating) : '0');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [colorName, setColorName] = useState(initial?.colorName ?? '');
@@ -56,7 +57,7 @@ export default function ProductForm({
     setBusy(true);
     try {
       await onSubmit({
-        name: name.trim(), category, price: Number(price), stock: Math.round(Number(stock)), rating: Number(rating),
+        name: name.trim(), category, price: Number(price), stock: Math.round(Number(stock)), personalizable, rating: Number(rating),
         description: description.trim(), colorName: colorName.trim(), colorHex, tags: allTags,
       });
       setTags(allTags);
@@ -93,6 +94,12 @@ export default function ProductForm({
             value={rating} onChange={(e) => setRating(e.target.value)} />
         </label>
       </div>
+
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-1" checked={personalizable} onChange={(e) => setPersonalizable(e.target.checked)} />
+        <span><span className="font-medium">Customers can personalise this card</span>
+          <span className="block text-slate-500">They type two names, the event date and venue, and see a preview before buying. You see the details on the order.</span></span>
+      </label>
 
       <label className="block text-sm font-medium">Description
         <textarea className={`${field} min-h-28 resize-y`} value={description} onChange={(e) => setDescription(e.target.value)}

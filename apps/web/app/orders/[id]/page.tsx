@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { fromPaise } from '@/lib/money';
 import Icon from '@/components/Icon';
 import InvoiceButton from '@/components/InvoiceButton';
+import { summary } from '@/lib/personalize';
 import OrderTimeline from '@/components/OrderTimeline';
 import { REFUND_LABEL, STATUS_LABEL, canCancel } from '@/lib/orderStatus';
 import { window as dateWindow } from '@/lib/delivery';
@@ -117,7 +118,11 @@ export default function OrderPage() {
       <ul className="mt-4 space-y-2 rounded-2xl bg-white p-4 shadow">
         {order.items.map((i) => (
           <li key={i.id} className="flex justify-between text-sm">
-            <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
+            <span>
+              {i.name} × {i.qty}
+              {i.personalization && <span className="block text-xs text-slate-500">{summary(i.personalization)}{i.personalization.note ? ` · “${i.personalization.note}”` : ''}</span>}
+            </span>
+            <span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
           </li>
         ))}
         {(order.discountPaise > 0 || order.shippingPaise > 0) && (

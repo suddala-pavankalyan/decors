@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import AdminGate from '@/components/admin/AdminGate';
 import AdminTabs from '@/components/admin/AdminTabs';
 import Icon from '@/components/Icon';
+import CardPreview from '@/components/CardPreview';
 import InvoiceButton from '@/components/InvoiceButton';
 import OrderTimeline from '@/components/OrderTimeline';
 import { advanceOrder, cancelOrder, getOrder, retryRefund, type AdminOrder } from '@/lib/adminOrders';
@@ -141,6 +142,21 @@ function Detail() {
 
       {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
         <div className="mt-4"><InvoiceButton path={`/admin/orders/${order.id}/invoice.pdf`} /></div>
+      )}
+
+      {order.items.some((i) => i.personalization) && (
+        <section aria-label="Cards to print" className="mt-4 rounded-2xl bg-white p-4 shadow">
+          <h2 className="font-semibold">Cards to print</h2>
+          <p className="text-xs text-slate-500">Print exactly this text. Quantities are the number of cards.</p>
+          <div className="mt-3 grid gap-5 sm:grid-cols-2">
+            {order.items.filter((i) => i.personalization).map((i) => (
+              <div key={i.id}>
+                <p className="mb-2 text-sm font-medium">{i.name} × {i.qty}</p>
+                <CardPreview details={i.personalization!} accent="#d946ef" name={i.name} />
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <ul className="mt-4 space-y-2 rounded-2xl bg-white p-4 shadow">

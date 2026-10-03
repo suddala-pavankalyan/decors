@@ -36,7 +36,7 @@ public class AccountController {
 
   @PutMapping("/cart/{productId}") @ResponseStatus(HttpStatus.NO_CONTENT)
   public void setQty(@CurrentUser AppUser user, @PathVariable String productId, @Valid @RequestBody AccountDtos.SetQty dto) {
-    account.setQty(user.id, productId, dto.qty());
+    account.setQty(user.id, productId, dto.qty(), dto.personalization());
   }
 
   @DeleteMapping("/cart") @ResponseStatus(HttpStatus.NO_CONTENT)

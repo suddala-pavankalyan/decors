@@ -2,7 +2,7 @@ import { API } from '@/lib/api';
 
 export interface AdminImage { id: number; url: string; alt: string }
 export interface AdminProduct {
-  id: string; name: string; category: string; price: number; stock: number; rating: number; description: string;
+  id: string; name: string; category: string; price: number; stock: number; personalizable: boolean; rating: number; description: string;
   colorName: string; colorHex: string; tags: string[]; images: AdminImage[];
 }
 export type ProductInput = Omit<AdminProduct, 'id' | 'images'>;

@@ -1,7 +1,8 @@
 import { API, type Product } from '@/lib/api';
+import type { Personalization } from '@/lib/personalize';
 
 export interface ServerState {
-  cart: { qty: number; product: Product }[];
+  cart: { qty: number; personalization: Personalization | null; product: Product }[];
   wishlist: Product[];
 }
 
@@ -17,9 +18,10 @@ async function req(path: string, method: string, body?: unknown): Promise<Respon
 }
 
 export const fetchState = async (): Promise<ServerState> => (await req('state', 'GET')).json();
-export const mergeGuest = async (cart: { productId: string; qty: number }[], wishlist: string[]): Promise<ServerState> =>
+export const mergeGuest = async (cart: { productId: string; qty: number; personalization?: Personalization | null }[], wishlist: string[]): Promise<ServerState> =>
   (await req('merge', 'POST', { cart, wishlist })).json();
-export const putQty = (id: string, qty: number) => req(`cart/${encodeURIComponent(id)}`, 'PUT', { qty });
+export const putQty = (id: string, qty: number, personalization?: Personalization | null) =>
+  req(`cart/${encodeURIComponent(id)}`, 'PUT', { qty, personalization: personalization ?? undefined });
 export const deleteCart = () => req('cart', 'DELETE');
 export const putWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'PUT');
 export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'DELETE');
@@ -27,7 +29,7 @@ export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)
 export type OrderStatus = 'PENDING' | 'PAID' | 'PACKED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 export interface OrderEvent { status: OrderStatus; note: string | null; createdAt: string }
-export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number }
+export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number; personalization: Personalization | null }
 export interface Order {
   id: string; status: OrderStatus; amount: number; subtotalPaise: number; discountPaise: number; shippingPaise: number; couponCode: string | null;
   estimatedFrom: string | null; estimatedTo: string | null; currency: string; createdAt: string; paidAt: string | null;
