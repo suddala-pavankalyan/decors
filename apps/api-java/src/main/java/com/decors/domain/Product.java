@@ -31,6 +31,8 @@ public class Product {
   public int stock;
   /** Customers can add their own names, date and venue (wedding cards). */
   public boolean personalizable;
+  /** The kind of option this product comes in ("Size"); null when it has none. Options live in ProductVariant. */
+  public String variantLabel;
   public double rating;
   public String description;
   @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "colorId")

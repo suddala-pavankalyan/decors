@@ -1,16 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import AddToCartButton from '@/components/AddToCartButton';
 import WishButton from '@/components/WishButton';
 import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
-import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
 import DeliveryCheck from '@/components/DeliveryCheck';
 import PersonalizeSection from '@/components/PersonalizeSection';
-import { stockLabel } from '@/lib/stock';
+import PurchaseProvider, { BuyButton, PriceBlock, VariantPicker } from '@/components/PurchaseProvider';
 
 type Props = { params: { id: string } };
 
@@ -24,6 +22,7 @@ export default async function ProductPage({ params }: Props) {
   if (!p) notFound();
 
   return (
+    <PurchaseProvider product={p}>
     <main className="mx-auto max-w-6xl px-4 py-8">
       <Link href="/shop" className="text-sm text-fuchsia-600 hover:underline"><Icon name="back" size={16} className="mr-1 inline-block align-[-3px]" />All products</Link>
 
@@ -38,11 +37,9 @@ export default async function ProductPage({ params }: Props) {
           <p className="mt-2 text-amber-600">
             <Icon name="star" size={18} filled className="mr-1 inline-block align-[-3px]" />{p.rating}
           </p>
-          <p className="mt-4 text-3xl font-bold tabular-nums">{rupees(p.price)}</p>
-          {stockLabel(p.stock) && (
-            <p className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold ${p.stock === 0 ? 'bg-slate-900 text-white' : 'bg-amber-100 text-amber-800'}`}>{stockLabel(p.stock)}</p>
-          )}
+          <PriceBlock />
           <p className="mt-4 text-slate-600">{p.description}</p>
+          <VariantPicker />
 
           <div className="mt-6 flex items-center gap-2 text-sm">
             <span className="h-6 w-6 rounded-full border-2 border-white shadow" style={{ background: p.color }} />
@@ -55,22 +52,14 @@ export default async function ProductPage({ params }: Props) {
           </div>
 
           <div className="mt-8 flex items-center gap-3">
-            {p.personalizable && p.stock > 0 ? (
-              <a href="#personalise" className="rounded-full px-8 py-3 font-semibold text-white shadow-lg" style={{ background: p.color }}>Personalise this card</a>
-            ) : (
-              <AddToCartButton
-                p={p}
-                label="Add to cart"
-                className="rounded-full px-8 py-3 font-semibold text-white shadow-lg"
-              />
-            )}
+            <BuyButton />
             <WishButton p={p} className="border border-slate-200" />
           </div>
           <DeliveryCheck />
         </section>
       </div>
 
-      {p.personalizable && <PersonalizeSection p={p} />}
+      {p.personalizable && <PersonalizeSection />}
 
       {p.related.length > 0 && (
         <section className="mt-16">
@@ -81,5 +70,6 @@ export default async function ProductPage({ params }: Props) {
         </section>
       )}
     </main>
+    </PurchaseProvider>
   );
 }

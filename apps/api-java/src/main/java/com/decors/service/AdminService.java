@@ -7,10 +7,12 @@ import com.decors.domain.Category;
 import com.decors.domain.Color;
 import com.decors.domain.Product;
 import com.decors.domain.ProductImage;
+import com.decors.domain.ProductVariant;
 import com.decors.domain.Tag;
 import com.decors.repo.Repositories.ColorRepository;
 import com.decors.repo.Repositories.ProductImageRepository;
 import com.decors.repo.Repositories.ProductRepository;
+import com.decors.repo.Repositories.ProductVariantRepository;
 import com.decors.repo.Repositories.TagRepository;
 import com.decors.storage.ImageStorage;
 import com.decors.web.dto.AdminDtos;
@@ -37,8 +39,10 @@ public class AdminService {
 
   public record AdminImage(int id, String url, String alt) {}
   public record AdminProduct(
-      String id, String name, String category, int price, int stock, boolean personalizable, double rating, String description,
+      String id, String name, String category, int price, int stock, boolean personalizable, String variantLabel,
+      List<AdminVariant> variants, double rating, String description,
       String colorName, String colorHex, List<String> tags, List<AdminImage> images) {}
+  public record AdminVariant(String id, String label, int price, int stock, boolean active) {}
   public record AdminPage(long total, List<AdminProduct> items, boolean hasMore) {}
 
   private final ProductRepository products;
@@ -48,9 +52,13 @@ public class AdminService {
   private final ProductViews views;
   private final ImageStorage storage;
   private final JdbcClient jdbc;
+  private final ProductVariantRepository variantRepo;
+  private final jakarta.persistence.EntityManager em;
 
   public AdminService(ProductRepository products, ColorRepository colors, TagRepository tags, ProductImageRepository images,
-      ProductViews views, ImageStorage storage, JdbcClient jdbc) {
+      ProductViews views, ImageStorage storage, JdbcClient jdbc, ProductVariantRepository variantRepo, jakarta.persistence.EntityManager em) {
+    this.variantRepo = variantRepo;
+    this.em = em;
     this.products = products;
     this.colors = colors;
     this.tags = tags;
@@ -121,9 +129,66 @@ public class AdminService {
 
   public AdminProduct setStock(String id, int stock) {
     Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Product not found"));
+    if (p.variantLabel != null) throw ApiException.conflict("This product has options: set the stock on each option instead");
     p.stock = stock;
     products.saveAndFlush(p);
     return get(id);
+  }
+
+  /**
+   * Replaces the product's options with this list: options with an id are updated, new ones are added, and ones left out
+   * are removed (together with any cart lines for them; past orders keep their own copy). An empty list turns options off.
+   */
+  public AdminProduct setVariants(String productId, String label, List<AdminDtos.VariantInput> input) {
+    Product p = products.findById(productId).orElseThrow(() -> ApiException.notFound("Product not found"));
+    List<ProductVariant> current = variantRepo.findByProductIdOrderByPositionAscIdAsc(productId);
+    if (input.isEmpty()) {
+      jdbc.sql("delete from \"CartItem\" where \"productId\" = :p and \"variantId\" <> ''").param("p", productId).update();
+      variantRepo.deleteAll(current);
+      variantRepo.flush();
+      jdbc.sql("update \"Product\" set \"variantLabel\" = null where id = :id").param("id", productId).update();
+      em.refresh(p);
+      return get(productId);
+    }
+    if (label == null || label.isBlank()) throw ApiException.badRequest("Name the kind of option, such as Size or Volume");
+    Set<String> seen = new LinkedHashSet<>();
+    for (var v : input) if (!seen.add(v.label().toLowerCase())) throw ApiException.badRequest("Each option needs a different name (\"" + v.label() + "\" is used twice)");
+    if (input.stream().noneMatch(v -> !Boolean.FALSE.equals(v.active()))) throw ApiException.badRequest("At least one option must be on sale");
+    Map<String, ProductVariant> byId = current.stream().collect(Collectors.toMap(v -> v.id, v -> v));
+    Set<String> keep = new LinkedHashSet<>();
+    // Names are unique per product, so free the old ones first (an option can take another's name in the same save).
+    for (ProductVariant v : current) v.label = v.id + "~" + v.label;
+    variantRepo.saveAllAndFlush(current);
+    int pos = 0;
+    for (var in : input) {
+      ProductVariant v;
+      if (in.id() != null && !in.id().isBlank()) {
+        v = byId.get(in.id());
+        if (v == null) throw ApiException.badRequest("Unknown option id " + in.id());
+        keep.add(v.id);
+      } else {
+        v = new ProductVariant();
+        v.id = Ids.newId();
+        v.productId = productId;
+        v.createdAt = Time.now();
+      }
+      v.label = in.label();
+      v.price = in.price();
+      v.stock = in.stock();
+      v.active = !Boolean.FALSE.equals(in.active());
+      v.position = pos++;
+      variantRepo.save(v);
+    }
+    List<ProductVariant> gone = current.stream().filter(v -> !keep.contains(v.id)).toList();
+    if (!gone.isEmpty()) {
+      jdbc.sql("delete from \"CartItem\" where \"productId\" = :p and \"variantId\" in (:ids)").param("p", productId).param("ids", gone.stream().map(v -> v.id).toList()).update();
+      variantRepo.deleteAll(gone);
+    }
+    variantRepo.flush();
+    // Written directly (not through the entity) so the price and stock the database just worked out are not overwritten.
+    jdbc.sql("update \"Product\" set \"variantLabel\" = :l where id = :id").param("l", label.trim()).param("id", productId).update();
+    em.refresh(p);
+    return get(productId);
   }
 
   public AdminProduct addImage(String productId, byte[] file, String alt) {
@@ -182,8 +247,11 @@ public class AdminService {
   private void apply(Product p, AdminDtos.ProductInput in, Category category, Color color) {
     p.name = in.name();
     p.category = category;
-    p.price = in.price();
-    p.stock = in.stock();
+    // With options, the product's own price and stock are worked out from them (by the database), not typed in.
+    if (p.variantLabel == null) {
+      p.price = in.price();
+      p.stock = in.stock();
+    }
     p.personalizable = Boolean.TRUE.equals(in.personalizable());
     p.rating = in.rating();
     p.description = in.description();
@@ -231,11 +299,15 @@ public class AdminService {
     for (ProductImage i : images.findByProductIdInOrderByPositionAscIdAsc(rows.stream().map(r -> r.id).toList())) {
       imgs.computeIfAbsent(i.productId, k -> new ArrayList<>()).add(new AdminImage(i.id, views.publicUrl(i.url), i.alt));
     }
+    Map<String, List<AdminVariant>> opts = new HashMap<>();
+    for (ProductVariant v : variantRepo.findByProductIdInOrderByPositionAscIdAsc(rows.stream().map(r -> r.id).toList())) {
+      opts.computeIfAbsent(v.productId, k -> new ArrayList<>()).add(new AdminVariant(v.id, v.label, v.price, v.stock, v.active));
+    }
     List<AdminProduct> out = new ArrayList<>();
     for (Product r : rows) {
       // The entities expose public fields, which a lazy proxy does not fill in, so use the real instance.
       Color color = (Color) org.hibernate.Hibernate.unproxy(r.color);
-      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.stock, r.personalizable, r.rating, r.description,
+      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.stock, r.personalizable, r.variantLabel, opts.getOrDefault(r.id, List.of()), r.rating, r.description,
           color.name, color.hex, r.tags.stream().map(t -> t.name).sorted().toList(),
           imgs.getOrDefault(r.id, List.of())));
     }

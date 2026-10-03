@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Table(name = "CartItem")
 public class CartItem {
   @EmbeddedId
-  public CartItemId id;
+  public CartLineId id;
   @ManyToOne(fetch = FetchType.LAZY) @MapsId("productId") @JoinColumn(name = "productId")
   public Product product;
   public int qty;

@@ -7,8 +7,11 @@ export interface Product {
   stock: number;
   /** Customers can add their own names, date and venue (wedding cards). */
   personalizable: boolean;
+  /** The kind of option this product comes in ("Size", "Volume"); null when it has none. Its price is then the lowest option's. */
+  variantLabel: string | null;
 }
-export interface ProductDetail extends Product { images: ProductImage[]; related: Product[] }
+export interface Variant { id: string; label: string; price: number; stock: number }
+export interface ProductDetail extends Product { images: ProductImage[]; related: Product[]; variants: Variant[] }
 export interface ProductPage { total: number; items: Product[]; hasMore: boolean }
 export interface Hall { category: string; count: number; colors: string[] }
 export interface Overview {

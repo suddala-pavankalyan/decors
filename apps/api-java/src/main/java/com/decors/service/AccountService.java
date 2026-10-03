@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AccountService {
-  public record CartLineView(int qty, com.fasterxml.jackson.databind.JsonNode personalization, ProductSummary product) {}
+  public record CartLineView(int qty, com.fasterxml.jackson.databind.JsonNode personalization, ProductService.VariantView variant, ProductSummary product) {}
   public record State(List<CartLineView> cart, List<ProductSummary> wishlist) {}
 
   private final CartItemRepository cart;
@@ -34,9 +34,11 @@ public class AccountService {
   private final JdbcClient jdbc;
   private final jakarta.persistence.EntityManager em;
   private final PersonalizationService personalization;
+  private final VariantLookup variants;
 
   public AccountService(CartItemRepository cart, WishlistItemRepository wishlist, ProductRepository products,
-      ProductViews views, JdbcClient jdbc, jakarta.persistence.EntityManager em, PersonalizationService personalization) {
+      ProductViews views, JdbcClient jdbc, jakarta.persistence.EntityManager em, PersonalizationService personalization, VariantLookup variants) {
+    this.variants = variants;
     this.personalization = personalization;
     this.em = em;
     this.cart = cart;
@@ -58,27 +60,36 @@ public class AccountService {
     for (ProductSummary s : views.summaries(all.stream().distinct().toList())) byId.put(s.id(), s);
     // The details typed for personalised cards are kept as JSON next to the quantity.
     Map<String, String> saved = new HashMap<>();
-    jdbc.sql("select \"productId\", personalization::text as p from \"CartItem\" where \"userId\" = :u and personalization is not null")
-        .param("u", userId).query((rs, n) -> Map.entry(rs.getString(1), rs.getString(2))).list().forEach(e -> saved.put(e.getKey(), e.getValue()));
+    jdbc.sql("select \"productId\", \"variantId\", personalization::text as p from \"CartItem\" where \"userId\" = :u and personalization is not null")
+        .param("u", userId).query((rs, n) -> Map.entry(key(rs.getString(1), rs.getString(2)), rs.getString(3))).list().forEach(e -> saved.put(e.getKey(), e.getValue()));
+    Map<String, VariantLookup.Row> options = variants.byIds(lines.stream().map(l -> l.id.variantId()).filter(v -> !v.isEmpty()).toList());
     return new State(
-        lines.stream().map(l -> new CartLineView(l.qty, personalization.read(saved.get(l.product.id)), byId.get(l.product.id))).toList(),
+        lines.stream().map(l -> {
+          VariantLookup.Row v = options.get(l.id.variantId());
+          return new CartLineView(l.qty, personalization.read(saved.get(key(l.product.id, l.id.variantId()))),
+              v == null ? null : new ProductService.VariantView(v.id(), v.label(), v.price(), Math.min(v.stock(), ProductViews.STOCK_CAP)),
+              byId.get(l.product.id));
+        }).toList(),
         wished.stream().map(w -> byId.get(w.product.id)).toList());
   }
 
   @Transactional
-  public void setQty(String userId, String productId, int qty, AccountDtos.Personalization details) {
+  public void setQty(String userId, String productId, String variantId, int qty, AccountDtos.Personalization details) {
+    String vid = variantId == null ? "" : variantId;
     if (qty == 0) {
-      jdbc.sql("delete from \"CartItem\" where \"userId\" = :u and \"productId\" = :p").param("u", userId).param("p", productId).update();
+      jdbc.sql("delete from \"CartItem\" where \"userId\" = :u and \"productId\" = :p and \"variantId\" = :v").param("u", userId).param("p", productId).param("v", vid).update();
       return;
     }
     Product p = products.findById(productId).orElseThrow(() -> ApiException.notFound("Product not found"));
-    if (qty > p.stock) throw ApiException.conflict(StockMessages.shortage(p.name, p.stock));
+    VariantLookup.Row option = variants.resolve(p, vid);
+    int available = option != null ? option.stock() : p.stock;
+    if (qty > available) throw ApiException.conflict(StockMessages.shortage(option != null ? p.name + " (" + option.label() + ")" : p.name, available));
     String stored = null;
     if (details != null) {
       if (!p.personalizable) throw ApiException.badRequest(p.name + " cannot be personalised");
       stored = personalization.validate(details);
     }
-    upsertCart(userId, productId, qty, stored);
+    upsertCart(userId, productId, vid, qty, stored);
   }
 
   @Transactional
@@ -110,27 +121,37 @@ public class AccountService {
     Map<String, String> guestDetails = new HashMap<>();
     Map<String, Product> byProduct = new HashMap<>();
     if (!ids.isEmpty()) products.findAllById(ids).forEach(p -> byProduct.put(p.id, p));
+    Map<String, VariantLookup.Row> options = variants.byIds(dto.cart().stream().map(l -> l.variantId() == null ? "" : l.variantId()).filter(v -> !v.isEmpty()).toList());
+    Map<String, Integer> stock = new HashMap<>();
     for (var l : dto.cart()) {
-      if (l.personalization() != null && known.contains(l.productId()) && byProduct.get(l.productId()).personalizable) {
+      Product p = byProduct.get(l.productId());
+      if (p == null) continue;
+      String vid = l.variantId() == null ? "" : l.variantId();
+      VariantLookup.Row v = options.get(vid);
+      // A line whose option does not exist (any more) is left out rather than failing the whole merge.
+      boolean valid = p.variantLabel == null ? vid.isEmpty() : v != null && v.productId().equals(p.id) && v.active();
+      if (!valid) continue;
+      String k = key(p.id, vid);
+      stock.put(k, v != null ? v.stock() : p.stock);
+      if (l.personalization() != null && p.personalizable) {
         try {
-          guestDetails.put(l.productId(), personalization.validate(l.personalization()));
+          guestDetails.put(k, personalization.validate(l.personalization()));
         } catch (ApiException e) {
           // Details that no longer make sense (such as a date now in the past) are dropped; the customer is asked again at checkout.
         }
       }
-      if (known.contains(l.productId())) guest.merge(l.productId(), l.qty(), (a, b) -> Math.min(AccountDtos.MAX_QTY, a + b));
+      guest.merge(k, l.qty(), (a, b) -> Math.min(AccountDtos.MAX_QTY, a + b));
     }
     Map<String, Integer> have = new HashMap<>();
     if (!guest.isEmpty()) {
-      cart.findForUserAndProducts(userId, guest.keySet()).forEach(c -> have.put(c.id.productId(), c.qty));
+      cart.findForUserAndProducts(userId, guest.keySet().stream().map(k -> k.substring(0, k.indexOf('|'))).collect(Collectors.toSet()))
+          .forEach(c -> have.put(key(c.id.productId(), c.id.variantId()), c.qty));
     }
     // Never put more in the cart than is in stock; a sold-out item is simply left out.
-    Map<String, Integer> stock = new HashMap<>();
-    products.findAllById(guest.keySet()).forEach(p -> stock.put(p.id, p.stock));
-    guest.forEach((pid, qty) -> {
-      int want = Math.min(AccountDtos.MAX_QTY, have.getOrDefault(pid, 0) + qty);
-      int allowed = Math.min(want, stock.getOrDefault(pid, 0));
-      if (allowed > 0) upsertCart(userId, pid, allowed, guestDetails.get(pid));
+    guest.forEach((k, qty) -> {
+      int want = Math.min(AccountDtos.MAX_QTY, have.getOrDefault(k, 0) + qty);
+      int allowed = Math.min(want, stock.getOrDefault(k, 0));
+      if (allowed > 0) upsertCart(userId, k.substring(0, k.indexOf('|')), k.substring(k.indexOf('|') + 1), allowed, guestDetails.get(k));
     });
     dto.wishlist().stream().filter(known::contains).distinct().forEach(pid -> insertWish(userId, pid));
     // The upserts above went around JPA, so drop what it cached before reading the result back.
@@ -143,13 +164,17 @@ public class AccountService {
   }
 
   /** {@code details} (JSON) replaces the saved personalisation; null leaves what is already there. */
-  private void upsertCart(String userId, String productId, int qty, String details) {
+  static String key(String productId, String variantId) {
+    return productId + "|" + (variantId == null ? "" : variantId);
+  }
+
+  private void upsertCart(String userId, String productId, String variantId, int qty, String details) {
     jdbc.sql("""
-            insert into "CartItem" ("userId", "productId", qty, "updatedAt", personalization) values (:u, :p, :q, :t, cast(:d as jsonb))
-            on conflict ("userId", "productId") do update set qty = excluded.qty, "updatedAt" = excluded."updatedAt",
+            insert into "CartItem" ("userId", "productId", "variantId", qty, "updatedAt", personalization) values (:u, :p, :v, :q, :t, cast(:d as jsonb))
+            on conflict ("userId", "productId", "variantId") do update set qty = excluded.qty, "updatedAt" = excluded."updatedAt",
                    personalization = coalesce(excluded.personalization, "CartItem".personalization)
             """)
-        .param("u", userId).param("p", productId).param("q", qty).param("t", Time.now()).param("d", details).update();
+        .param("u", userId).param("p", productId).param("v", variantId).param("q", qty).param("t", Time.now()).param("d", details).update();
   }
 
   private void insertWish(String userId, String productId) {

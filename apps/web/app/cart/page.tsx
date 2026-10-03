@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { maxFor, useHydrated, useStore } from '@/lib/store';
+import { lineKey, maxFor, useHydrated, useStore } from '@/lib/store';
 import { stockLabel } from '@/lib/stock';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
@@ -23,7 +23,7 @@ export default function CartPage() {
 
   const subtotal = cart.reduce((n, l) => n + l.price * l.qty, 0);
   const needDetails = cart.filter((l) => l.personalizable && (!l.personalization || problem(l.personalization)));
-  const editingLine = cart.find((l) => l.id === editing);
+  const editingLine = cart.find((l) => lineKey(l) === editing);
 
   return (
     <main className="mx-auto max-w-4xl px-4 pb-16">
@@ -40,7 +40,7 @@ export default function CartPage() {
             <AnimatePresence initial={false}>
               {cart.map((l) => (
                 <motion.li
-                  key={l.id} layout
+                  key={lineKey(l)} layout
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -40 }}
                   className="flex items-center gap-4 rounded-2xl bg-white p-3 shadow"
@@ -49,14 +49,14 @@ export default function CartPage() {
                     {l.image && <Image src={l.image.url} alt={l.image.alt} fill sizes="96px" className="object-cover" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <Link href={`/products/${l.id}`} className="block truncate font-semibold hover:underline">{l.name}</Link>
+                    <Link href={`/products/${l.id}`} className="block truncate font-semibold hover:underline">{l.name}{l.variantLabel ? <span className="font-normal text-slate-600"> ({l.variantLabel})</span> : null}</Link>
                     <p className="text-sm capitalize text-slate-500">{l.category.replace('-', ' ')} · {rupees(l.price)}</p>
                     <div className="mt-2 flex items-center gap-2">
-                      <button type="button" aria-label="Decrease quantity" onClick={() => setQty(l.id, l.qty - 1)}
+                      <button type="button" aria-label="Decrease quantity" onClick={() => setQty(lineKey(l), l.qty - 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200"><Icon name="minus" size={14} /></button>
                       <span className="w-6 text-center text-sm">{l.qty}</span>
                       <button type="button" aria-label="Increase quantity" disabled={l.qty >= maxFor(l)}
-                        onClick={() => setQty(l.id, l.qty + 1)}
+                        onClick={() => setQty(lineKey(l), l.qty + 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 disabled:opacity-40"><Icon name="plus" size={14} /></button>
                     </div>
                     {l.personalizable && (
@@ -66,7 +66,7 @@ export default function CartPage() {
                         ) : (
                           <p role="alert" className="font-medium text-rose-600">{l.personalization ? 'The event date has passed or details are incomplete.' : 'Add your names, date and venue to check out.'}</p>
                         )}
-                        <button type="button" onClick={() => setEditing(l.id)} className="mt-0.5 font-semibold text-fuchsia-700 hover:underline">
+                        <button type="button" onClick={() => setEditing(lineKey(l))} className="mt-0.5 font-semibold text-fuchsia-700 hover:underline">
                           {l.personalization ? 'Edit card details' : 'Add card details'}
                         </button>
                       </div>
@@ -79,7 +79,7 @@ export default function CartPage() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold tabular-nums">{rupees(l.price * l.qty)}</p>
-                    <button type="button" onClick={() => remove(l.id)} className="mt-2 text-xs text-rose-500 hover:underline">
+                    <button type="button" onClick={() => remove(lineKey(l))} className="mt-2 text-xs text-rose-500 hover:underline">
                       Remove
                     </button>
                   </div>
@@ -113,7 +113,7 @@ export default function CartPage() {
           <div className="my-8 w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
             <h2 className="mb-4 text-xl font-bold">{editingLine.name}</h2>
             <PersonalizeEditor initial={editingLine.personalization} accent={editingLine.color} productName={editingLine.name} submitLabel="Save details"
-              onSubmit={(d) => { setDetails(editingLine.id, d); setEditing(null); }} onCancel={() => setEditing(null)} />
+              onSubmit={(d) => { setDetails(lineKey(editingLine), d); setEditing(null); }} onCancel={() => setEditing(null)} />
           </div>
         </div>
       )}

@@ -67,7 +67,7 @@ public final class Repositories {
     Optional<AppUser> findByEmail(String email);
   }
 
-  public interface CartItemRepository extends JpaRepository<CartItem, CartItemId> {
+  public interface CartItemRepository extends JpaRepository<CartItem, CartLineId> {
     @Query("select c from CartItem c join fetch c.product p join fetch p.color where c.id.userId = :userId order by c.updatedAt asc")
     List<CartItem> findForUser(@Param("userId") String userId);
 
@@ -105,5 +105,11 @@ public final class Repositories {
 
     @Query("select max(t.createdAt) from AuthToken t where t.userId = :userId and t.type = :type")
     Optional<LocalDateTime> lastIssuedAt(@Param("userId") String userId, @Param("type") AuthTokenType type);
+  }
+
+  public interface ProductVariantRepository extends JpaRepository<ProductVariant, String> {
+    List<ProductVariant> findByProductIdOrderByPositionAscIdAsc(String productId);
+
+    List<ProductVariant> findByProductIdInOrderByPositionAscIdAsc(Collection<String> productIds);
   }
 }

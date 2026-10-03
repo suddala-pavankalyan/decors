@@ -160,4 +160,21 @@ public final class AdminDtos {
   public record StockInput(
       @NotNull(message = "stock must be an integer number") @Min(value = 0, message = "stock must not be less than 0")
       @Max(value = 1_000_000, message = "stock must not be greater than 1000000") Integer stock) {}
+
+  public record VariantInput(
+      @Size(max = 60, message = "id must be shorter than or equal to 60 characters") String id,
+      @JsonDeserialize(using = Trim.class) @NotNull(message = "label must be a string")
+      @Size(min = 1, max = 40, message = "label must be longer than or equal to 1 and shorter than or equal to 40 characters")
+      String label,
+      @NotNull(message = "price must be an integer number") @Min(value = 1, message = "price must not be less than 1")
+      @Max(value = 1_000_000, message = "price must not be greater than 1000000") Integer price,
+      @NotNull(message = "stock must be an integer number") @Min(value = 0, message = "stock must not be less than 0")
+      @Max(value = 1_000_000, message = "stock must not be greater than 1000000") Integer stock,
+      Boolean active) {}
+
+  /** The kind of option ("Size") and the options. An empty list turns options off for the product. */
+  public record VariantsInput(
+      @JsonDeserialize(using = Trim.class) @Size(max = 30, message = "label must be shorter than or equal to 30 characters") String label,
+      @NotNull(message = "variants must be an array") @Size(max = 12, message = "variants must contain no more than 12 elements")
+      List<@jakarta.validation.Valid @NotNull(message = "variants must be an array") VariantInput> variants) {}
 }

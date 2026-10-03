@@ -48,7 +48,7 @@ async function syncAccount(userId: string) {
   try {
     if (store.ownerId === null) {
       const merged = await account.mergeGuest(
-        store.cart.map((l) => ({ productId: l.id, qty: l.qty, personalization: l.personalization ?? null })),
+        store.cart.map((l) => ({ productId: l.id, variantId: l.variantId, qty: l.qty, personalization: l.personalization ?? null })),
         store.wishlist.map((w) => w.id),
       );
       store.adopt(merged, userId);

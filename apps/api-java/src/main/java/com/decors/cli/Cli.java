@@ -129,6 +129,16 @@ public class Cli implements ApplicationRunner {
           }));
         }
         products.saveAndFlush(pr);
+        if (pr.category == Category.PAINTS) {
+          // Paints come in tins of different sizes (the product's price becomes the lowest option's).
+          String[][] tins = {{"1 L", "1"}, {"4 L", "3"}, {"10 L", "7"}};
+          int pos = 0;
+          for (String[] t : tins) {
+            jdbc.sql("insert into \"ProductVariant\" (id, \"productId\", label, price, stock, position) values (:id, :p, :l, :price, 25, :pos)")
+                .param("id", Ids.newId()).param("p", pr.id).param("l", t[0]).param("price", pr.price * Integer.parseInt(t[1])).param("pos", pos++).update();
+          }
+          jdbc.sql("update \"Product\" set \"variantLabel\" = 'Size' where id = :p").param("p", pr.id).update();
+        }
         for (int i = 0; i < 3; i++) {
           ProductImage img = new ProductImage();
           img.productId = pr.id;

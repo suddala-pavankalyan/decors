@@ -2,30 +2,32 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import PersonalizeEditor from '@/components/PersonalizeEditor';
-import type { Product } from '@/lib/api';
+import { usePurchase } from '@/components/PurchaseProvider';
 import type { Personalization } from '@/lib/personalize';
-import { maxFor, useStore } from '@/lib/store';
+import { lineKey, maxFor, useStore } from '@/lib/store';
 
 /** "Make it yours" on a product page: type the details, watch the card change, add it to the cart. */
-export default function PersonalizeSection({ p }: { p: Product }) {
+export default function PersonalizeSection() {
+  const { product: p, variant, stock } = usePurchase();
+  const key = lineKey({ id: p.id, variantId: variant?.id });
   const add = useStore((s) => s.addToCart);
   const setQtyOf = useStore((s) => s.setQty);
   const setDetails = useStore((s) => s.setPersonalization);
-  const line = useStore((s) => s.cart.find((l) => l.id === p.id));
+  const line = useStore((s) => s.cart.find((l) => lineKey(l) === key));
   const [qty, setQty] = useState('1');
   const [done, setDone] = useState(false);
-  const max = maxFor(p);
+  const max = maxFor({ stock });
 
-  if (p.stock === 0) return <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">This card is sold out.</p>;
+  if (stock === 0) return <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">This card is sold out.</p>;
 
   function submit(d: Personalization) {
     const n = Math.min(max, Math.max(1, Math.round(Number(qty) || 1)));
     // Adding again replaces the details and sets the number of cards, rather than piling up copies.
     if (line) {
-      setQtyOf(p.id, n);
-      setDetails(p.id, d);
+      setQtyOf(key, n);
+      setDetails(key, d);
     } else {
-      add(p, n, d);
+      add(p, n, d, variant);
     }
     setDone(true);
   }
@@ -40,7 +42,7 @@ export default function PersonalizeSection({ p }: { p: Product }) {
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-200" />
         </label>
         <PersonalizeEditor
-          key={line?.personalization ? 'saved' : 'new'}
+          key={`${key}-${line?.personalization ? 'saved' : 'new'}`}
           initial={line?.personalization ?? null} accent={p.color} productName={p.name}
           submitLabel={line ? 'Update cart' : 'Add to cart'} onSubmit={submit}
         />

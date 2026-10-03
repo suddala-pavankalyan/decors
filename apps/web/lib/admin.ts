@@ -1,11 +1,12 @@
 import { API } from '@/lib/api';
 
 export interface AdminImage { id: number; url: string; alt: string }
+export interface AdminVariant { id?: string; label: string; price: number; stock: number; active: boolean }
 export interface AdminProduct {
-  id: string; name: string; category: string; price: number; stock: number; personalizable: boolean; rating: number; description: string;
+  id: string; name: string; category: string; price: number; stock: number; personalizable: boolean; variantLabel: string | null; variants: AdminVariant[]; rating: number; description: string;
   colorName: string; colorHex: string; tags: string[]; images: AdminImage[];
 }
-export type ProductInput = Omit<AdminProduct, 'id' | 'images'>;
+export type ProductInput = Omit<AdminProduct, 'id' | 'images' | 'variants' | 'variantLabel'>;
 
 export const MAX_IMAGES = 8;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -53,3 +54,5 @@ export const deleteImage = (id: string, imageId: number) =>
   call<AdminProduct>(`/${encodeURIComponent(id)}/images/${imageId}`, 'DELETE');
 export const reorderImages = (id: string, ids: number[]) =>
   call<AdminProduct>(`/${encodeURIComponent(id)}/images/order`, 'PUT', { ids });
+export const setVariants = (id: string, label: string, variants: AdminVariant[]) =>
+  call<AdminProduct>(`/${encodeURIComponent(id)}/variants`, 'PUT', { label, variants });

@@ -38,6 +38,8 @@ public final class AccountDtos {
       @Min(value = 0, message = "qty must not be less than 0")
       @Max(value = MAX_QTY, message = "qty must not be greater than 99")
       Integer qty,
+      /** The option of a product that has options (size, volume...); leave it out for products without. */
+      @Size(max = 60, message = "variantId must be shorter than or equal to 60 characters") String variantId,
       /** Optional: leave it out to keep the details already saved on the line. */
       @Valid Personalization personalization) {}
 
@@ -47,6 +49,7 @@ public final class AccountDtos {
       @Min(value = 1, message = "qty must not be less than 1")
       @Max(value = MAX_QTY, message = "qty must not be greater than 99")
       Integer qty,
+      @Size(max = 60, message = "variantId must be shorter than or equal to 60 characters") String variantId,
       @Valid Personalization personalization) {}
 
   public record Merge(

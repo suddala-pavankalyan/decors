@@ -30,6 +30,7 @@ export default function ProductForm({
   const [customColor, setCustomColor] = useState(false);
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
+  const hasOptions = !!initial?.variantLabel;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -81,13 +82,15 @@ export default function ProductForm({
           <Dropdown ariaLabel="Category" placeholder="Category" value={category} onChange={setCategory} options={CATEGORIES}
             className="mt-1 [&>button]:py-2.5" />
         </div>
-        <label className="block text-sm font-medium">Price (₹)
-          <input className={field} type="number" inputMode="numeric" min={1} max={1000000} step={1} required
+        <label className="block text-sm font-medium">{hasOptions ? 'Price from (₹)' : 'Price (₹)'}
+          <input className={field} type="number" inputMode="numeric" min={1} max={1000000} step={1} required disabled={hasOptions}
             value={price} onChange={(e) => setPrice(e.target.value)} />
+          {hasOptions && <span className="mt-1 block text-xs font-normal text-slate-500">The lowest option price. Set prices on the options below.</span>}
         </label>
         <label className="block text-sm font-medium">In stock (units)
-          <input className={field} type="number" inputMode="numeric" min={0} max={1000000} step={1} required
+          <input className={field} type="number" inputMode="numeric" min={0} max={1000000} step={1} required disabled={hasOptions}
             value={stock} onChange={(e) => setStock(e.target.value)} />
+          {hasOptions && <span className="mt-1 block text-xs font-normal text-slate-500">Total of all options.</span>}
         </label>
         <label className="block text-sm font-medium">Rating (0–5)
           <input className={field} type="number" min={0} max={5} step={0.1} required
