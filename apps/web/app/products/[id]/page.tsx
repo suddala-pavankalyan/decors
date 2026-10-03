@@ -6,6 +6,8 @@ import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
 import Icon from '@/components/Icon';
+import Reviews from '@/components/Reviews';
+import Stars from '@/components/Stars';
 import DeliveryCheck from '@/components/DeliveryCheck';
 import PersonalizeSection from '@/components/PersonalizeSection';
 import PurchaseProvider, { BuyButton, PriceBlock, VariantPicker } from '@/components/PurchaseProvider';
@@ -34,8 +36,10 @@ export default async function ProductPage({ params }: Props) {
             {p.category.replace('-', ' ')}
           </span>
           <h1 className="mt-3 text-4xl font-extrabold">{p.name}</h1>
-          <p className="mt-2 text-amber-600">
-            <Icon name="star" size={18} filled className="mr-1 inline-block align-[-3px]" />{p.rating}
+          <p className="mt-2">
+            {p.reviewCount > 0
+              ? <a href="#reviews" className="hover:underline"><Stars rating={p.rating} count={p.reviewCount} size={18} /></a>
+              : <a href="#reviews" className="text-sm text-slate-500 hover:underline">No reviews yet</a>}
           </p>
           <PriceBlock />
           <p className="mt-4 text-slate-600">{p.description}</p>
@@ -60,6 +64,8 @@ export default async function ProductPage({ params }: Props) {
       </div>
 
       {p.personalizable && <PersonalizeSection />}
+
+      <Reviews productId={p.id} productName={p.name} />
 
       {p.related.length > 0 && (
         <section className="mt-16">

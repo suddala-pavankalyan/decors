@@ -59,7 +59,7 @@ public final class AdminDtos {
       @JsonDeserialize(using = Trim.class) @NotNull(message = "description must be a string")
       @Size(min = 1, max = 2000, message = "description must be longer than or equal to 1 and shorter than or equal to 2000 characters")
       String description,
-      @NotNull(message = "rating must be a number conforming to the specified constraints")
+      /** Ignored: a product's rating is the average of its customers' reviews. Still accepted so older clients keep working. */
       @Min(value = 0, message = "rating must not be less than 0")
       @Max(value = 5, message = "rating must not be greater than 5")
       Double rating,

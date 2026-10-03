@@ -78,7 +78,8 @@ const mailServer = new SMTPServer({
     stream.on('end', () => { mails.push(raw); cb(); });
   },
 });
-const decodeQp = (s) => s.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+// Mails are 7bit unless they say otherwise; decoding "=AB" in a plain mail would corrupt a token that happens to start with hex digits.
+const decodeQp = (s) => (/Content-Transfer-Encoding: quoted-printable/i.test(s) ? s.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16))) : s);
 async function mailTo(addr, kind, afterCount = 0) {
   for (let i = 0; i < 80; i++) {
     const hit = mails.slice(afterCount).map(decodeQp).find((m) => m.toLowerCase().includes(`to: ${addr}`) && m.includes(kind));
@@ -1250,6 +1251,149 @@ async function main() {
     r = await alice2.get('/admin/customers?q=%25');
     check('search wildcards are escaped', r.json.total === 0, r.json.total);
     await db.query(`delete from "Order" where id = $1`, [dOrder.orderId]);
+
+    // ───── reviews and ratings ─────
+    section('reviews');
+    // a product nobody has bought yet, so the "has received it" rule can be seen working
+    const rp = (await alice2.post('/admin/products', { name: `Review Test ${RUN}`, category: 'gift-cards', price: 30, stock: 500, personalizable: false, description: 'r', rating: 0, colorName: `Review Teal ${RUN}`, colorHex: '#0d9488', tags: [] })).json;
+    const deliver = async () => {
+      await buyer.del('/account/cart');
+      await buyer.put(`/account/cart/${rp.id}`, { qty: 1 });
+      const c = (await checkoutRaw(addr)).json;
+      const pid = `pay_${RUN}_rv`;
+      await buyer.post('/checkout/verify', { orderId: c.orderId, razorpay_order_id: c.razorpayOrderId, razorpay_payment_id: pid, razorpay_signature: hmac(KEY_SECRET, `${c.razorpayOrderId}|${pid}`) });
+      for (const st of ['PACKED', 'SHIPPED']) await alice2.post(`/admin/orders/${c.orderId}/status`, { status: st });
+      return c;
+    };
+    const R = (path) => `/products/${rp.id}/reviews${path}`;
+    r = await anon.get(R(''));
+    check('reviews are public; none yet', r.status === 200 && r.json.summary.count === 0 && r.json.summary.average === 0 && r.json.items.length === 0 && Object.keys(r.json.summary.histogram).length === 5, r.text);
+    check('product starts with no rating', (await anon.get(`/products/${rp.id}`)).json.reviewCount === 0 && (await anon.get(`/products/${rp.id}`)).json.rating === 0);
+    r = await anon.get('/products/nope/reviews');
+    check('unknown product → 404', r.status === 404);
+    r = await anon.get(R('?sort=funny'));
+    check('sort validated', r.status === 400);
+    r = await anon.get(R('?limit=0'));
+    check('limit validated', r.status === 400);
+    r = await anon.get(R('/mine'));
+    check('mine needs login', r.status === 401);
+    r = await anon.put(R('/mine'), { rating: 5, body: 'Lovely cards, really.' });
+    check('writing needs login', r.status === 401);
+
+    const shipped = await deliver(); // shipped, not delivered yet
+    r = await buyer.get(R('/mine'));
+    check('before delivery the buyer cannot review yet', r.status === 200 && r.json.canReview === false && r.json.review === null && /received this product/.test(r.json.reason), r.text);
+    r = await buyer.put(R('/mine'), { rating: 5, body: 'Lovely cards, really.' });
+    check('review before delivery → 403', r.status === 403, r.text);
+    await alice2.post(`/admin/orders/${shipped.orderId}/status`, { status: 'DELIVERED' });
+    r = await buyer.get(R('/mine'));
+    check('after delivery they can', r.json.canReview === true && r.json.reason === null, r.text);
+    r = await buyer.put(R('/mine'), { rating: 0, body: 'Lovely cards, really.' });
+    check('rating 0 refused', r.status === 400, r.text);
+    r = await buyer.put(R('/mine'), { rating: 6, body: 'Lovely cards, really.' });
+    check('rating 6 refused', r.status === 400, r.text);
+    r = await buyer.put(R('/mine'), { rating: 4.5, body: 'Lovely cards, really.' });
+    check('half stars refused', r.status === 400, r.text);
+    r = await buyer.put(R('/mine'), { rating: 5, body: 'short' });
+    check('too short a review refused', r.status === 400 && JSON.stringify(r.json.message).includes('body must be longer'), r.text);
+    r = await buyer.put(R('/mine'), { rating: 5, title: 'x'.repeat(81), body: 'Lovely cards, really.' });
+    check('title length limited', r.status === 400, r.text);
+    r = await buyer.put(R('/mine'), { rating: 4, title: '  Nice paper  ', body: '  Lovely cards, really.  ' });
+    check('write a review', r.status === 200 && r.json.review.rating === 4 && r.json.review.title === 'Nice paper' && r.json.review.body === 'Lovely cards, really.' && r.json.review.verifiedBuyer === true && r.json.status === 'PUBLISHED' && r.json.review.authorName === 'Buyer', r.text);
+    const reviewId = r.json.review.id;
+    check('their name is shortened, never the email', !JSON.stringify(r.json).includes('@'));
+    r = await rival.put(R('/mine'), { rating: 1, body: 'I never bought this one.' });
+    check('someone who did not buy cannot review', r.status === 403 && /received this product/.test(r.json.message), r.text);
+    let p1 = (await anon.get(`/products/${rp.id}`)).json;
+    check('the product rating is now the average', p1.rating === 4 && p1.reviewCount === 1);
+    r = await anon.get('/products?q=' + encodeURIComponent(rp.name));
+    check('listings carry rating and count', r.json.items.find((i) => i.id === rp.id).rating === 4 && r.json.items.find((i) => i.id === rp.id).reviewCount === 1);
+    r = await buyer.put(R('/mine'), { rating: 5, body: 'Even better after a month.' });
+    check('editing updates in place (still one review)', r.status === 200 && r.json.review.id === reviewId && r.json.review.rating === 5 && r.json.review.title === null, r.text);
+    r = await anon.get(R(''));
+    check('one published review', r.json.total === 1 && r.json.summary.count === 1 && r.json.summary.average === 5 && r.json.summary.histogram['5'] === 1 && r.json.items[0].body === 'Even better after a month.' && !('userId' in r.json.items[0]), r.text.slice(0, 300));
+
+    // a second opinion, added straight to the database (the buyer-only rule is covered above)
+    const rivalId = (await db.query('select id from "User" where email = $1', [rivalEmail])).rows[0].id;
+    await db.query(`insert into "Review" (id, "productId", "userId", rating, body) values ($1, $2, $3, 2, 'Not what I expected at all.')`, [`rev${RUN}`, rp.id, rivalId]);
+    r = await anon.get(R(''));
+    check('summary and histogram add up', r.json.summary.count === 2 && r.json.summary.average === 3.5 && r.json.summary.histogram['5'] === 1 && r.json.summary.histogram['2'] === 1 && r.json.summary.histogram['3'] === 0, r.text.slice(0, 300));
+    check('the product rating follows', (await anon.get(`/products/${rp.id}`)).json.rating === 3.5 && (await anon.get(`/products/${rp.id}`)).json.reviewCount === 2);
+    r = await anon.get(R('?sort=lowest'));
+    check('lowest first', r.json.items[0].rating === 2 && r.json.items[1].rating === 5);
+    r = await anon.get(R('?sort=highest&limit=1'));
+    check('highest first, paged', r.json.items.length === 1 && r.json.items[0].rating === 5 && r.json.hasMore === true && r.json.total === 2);
+    r = await anon.get(R('?sort=highest&limit=1&offset=1'));
+    check('second page', r.json.items[0].rating === 2 && r.json.hasMore === false);
+    r = await anon.get('/products?sort=rating&limit=60');
+    check('sorting by rating puts reviewed products first', r.json.items[0].id === rp.id && r.json.items[1].rating <= r.json.items[0].rating);
+
+    // photos
+    r = await buyer.req('POST', R('/mine/images'), upload(rp.id, Buffer.from('<svg onload=alert(1)>'), 'x.jpg'));
+    check('a non-image photo is refused', r.status === 415, r.text);
+    r = await stranger.req('POST', R('/mine/images'), upload(rp.id, PNG));
+    check('photos need a review first', r.status === 400 && /Write your review first/.test(r.json.message), r.text);
+    r = await buyer.req('POST', R('/mine/images'), upload(rp.id, PNG));
+    check('add a photo', r.status === 201 && r.json.review.photos.length === 1 && /^https?:\/\/.+\/uploads\/[0-9a-f-]{36}\.png$/.test(r.json.review.photos[0].url), r.text);
+    const photo1 = r.json.review.photos[0];
+    for (let i = 0; i < 2; i++) r = await buyer.req('POST', R('/mine/images'), upload(rp.id, JPG, 'b.png'));
+    check('up to three photos', r.status === 201 && r.json.review.photos.length === 3);
+    r = await buyer.req('POST', R('/mine/images'), upload(rp.id, PNG));
+    check('a fourth photo is refused', r.status === 400 && /at most 3/.test(r.json.message), r.text);
+    check('photos are public', (await anon.get(R(''))).json.items.find((i) => i.id === reviewId).photos.length === 3 && (await fetch(photo1.url)).status === 200);
+    r = await buyer.del(R(`/mine/images/${photo1.id}`));
+    check('remove a photo', r.status === 200 && r.json.review.photos.length === 2 && (await fetch(photo1.url)).status === 404, r.text);
+    r = await buyer.del(R(`/mine/images/${photo1.id}`));
+    check('removing it twice → 404', r.status === 404);
+
+    // moderation
+    r = await buyer.get('/admin/reviews');
+    check('review admin needs admin', r.status === 403);
+    r = await alice2.get(`/admin/reviews?q=${encodeURIComponent(rp.name)}`);
+    check('admin lists reviews with product and customer', r.status === 200 && r.json.total === 2 && r.json.items.some((i) => i.id === reviewId && i.userEmail === buyerEmail && i.productName === rp.name && i.photos.length === 2) && r.json.counts.PUBLISHED >= 2, r.text.slice(0, 300));
+    r = await alice2.get(`/admin/reviews?rating=2&q=${encodeURIComponent(rp.name)}`);
+    check('filter by stars', r.json.total === 1 && r.json.items[0].rating === 2);
+    r = await alice2.get('/admin/reviews?status=NOPE');
+    check('status filter validated', r.status === 400);
+    r = await alice2.put(`/admin/reviews/${reviewId}`, {});
+    check('an empty moderation request is refused', r.status === 400);
+    r = await alice2.put(`/admin/reviews/${reviewId}`, { status: 'HIDDEN' });
+    check('hide a review', r.status === 200 && r.json.status === 'HIDDEN', r.text);
+    r = await anon.get(R(''));
+    check('hidden reviews leave the public list and the rating', r.json.total === 1 && r.json.items[0].rating === 2 && r.json.summary.average === 2 && (await anon.get(`/products/${rp.id}`)).json.rating === 2 && (await anon.get(`/products/${rp.id}`)).json.reviewCount === 1);
+    r = await buyer.get(R('/mine'));
+    check('the author still sees it, marked hidden', r.json.review.id === reviewId && r.json.status === 'HIDDEN');
+    r = await buyer.put(R('/mine'), { rating: 5, body: 'Edited after it was hidden.' });
+    check('editing does not unhide it', r.json.status === 'HIDDEN');
+    r = await alice2.put(`/admin/reviews/${reviewId}`, { status: 'PUBLISHED', reply: '  Thank you! ' });
+    check('show it again and reply', r.status === 200 && r.json.status === 'PUBLISHED' && r.json.reply === 'Thank you!' && r.json.repliedAt, r.text);
+    r = await anon.get(R(''));
+    check('the reply is public', r.json.items.find((i) => i.id === reviewId).reply === 'Thank you!');
+    r = await alice2.put(`/admin/reviews/${reviewId}`, { reply: 'x'.repeat(501) });
+    check('reply length limited', r.status === 400);
+    r = await alice2.put(`/admin/reviews/${reviewId}`, { reply: '' });
+    check('an empty reply removes it', r.status === 200 && r.json.reply === null);
+    r = await alice2.put('/admin/reviews/nope', { status: 'HIDDEN' });
+    check('unknown review → 404', r.status === 404);
+    r = await alice2.put(`/admin/reviews/${reviewId}`, { status: 'WEIRD' });
+    check('status validated', r.status === 400);
+    r = await alice2.del(`/admin/reviews/rev${RUN}`);
+    check('admin deletes a review', r.status === 204 && (await anon.get(R(''))).json.total === 1);
+    r = await alice2.del(`/admin/reviews/rev${RUN}`);
+    check('deleting twice → 404', r.status === 404);
+
+    // the order page can point at the review; the author can delete theirs
+    const keep = (await buyer.get(R('/mine'))).json.review.photos[0].url;
+    r = await buyer.del(R('/mine'));
+    check('delete my review', r.status === 204);
+    check('its photos go too', (await fetch(keep)).status === 404);
+    r = await buyer.get(R('/mine'));
+    check('the rating is back to nothing', r.json.review === null && r.json.canReview === true && (await anon.get(`/products/${rp.id}`)).json.rating === 0 && (await anon.get(`/products/${rp.id}`)).json.reviewCount === 0);
+    r = await buyer.del(R('/mine'));
+    check('deleting again → 404', r.status === 404);
+    await db.query(`delete from "Order" where id = $1`, [shipped.orderId]);
+    await alice2.del(`/admin/products/${rp.id}`);
+    await db.query(`delete from "Color" where name = $1`, [`Review Teal ${RUN}`]);
 
     // ───── invoices ─────
     section('invoices');

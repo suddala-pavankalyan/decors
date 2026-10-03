@@ -23,7 +23,6 @@ export default function ProductForm({
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
   const [stock, setStock] = useState(initial ? String(initial.stock) : '10');
   const [personalizable, setPersonalizable] = useState(initial?.personalizable ?? false);
-  const [rating, setRating] = useState(initial ? String(initial.rating) : '0');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [colorName, setColorName] = useState(initial?.colorName ?? '');
   const [colorHex, setColorHex] = useState(initial?.colorHex ?? '#d946ef');
@@ -58,7 +57,7 @@ export default function ProductForm({
     setBusy(true);
     try {
       await onSubmit({
-        name: name.trim(), category, price: Number(price), stock: Math.round(Number(stock)), personalizable, rating: Number(rating),
+        name: name.trim(), category, price: Number(price), stock: Math.round(Number(stock)), personalizable,
         description: description.trim(), colorName: colorName.trim(), colorHex, tags: allTags,
       });
       setTags(allTags);
@@ -91,10 +90,6 @@ export default function ProductForm({
           <input className={field} type="number" inputMode="numeric" min={0} max={1000000} step={1} required disabled={hasOptions}
             value={stock} onChange={(e) => setStock(e.target.value)} />
           {hasOptions && <span className="mt-1 block text-xs font-normal text-slate-500">Total of all options.</span>}
-        </label>
-        <label className="block text-sm font-medium">Rating (0–5)
-          <input className={field} type="number" min={0} max={5} step={0.1} required
-            value={rating} onChange={(e) => setRating(e.target.value)} />
         </label>
       </div>
 

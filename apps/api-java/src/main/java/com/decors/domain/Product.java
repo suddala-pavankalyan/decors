@@ -33,7 +33,9 @@ public class Product {
   public boolean personalizable;
   /** The kind of option this product comes in ("Size"); null when it has none. Options live in ProductVariant. */
   public String variantLabel;
+  /** Average of the published reviews (kept by the database); 0 until there is one. */
   public double rating;
+  public int reviewCount;
   public String description;
   @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "colorId")
   public Color color;

@@ -253,7 +253,6 @@ public class AdminService {
       p.stock = in.stock();
     }
     p.personalizable = Boolean.TRUE.equals(in.personalizable());
-    p.rating = in.rating();
     p.description = in.description();
     p.color = color;
     Map<String, Tag> existing = in.tags().isEmpty() ? Map.of()

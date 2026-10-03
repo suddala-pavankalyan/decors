@@ -120,6 +120,9 @@ export default function OrderPage() {
           <li key={i.id} className="flex justify-between text-sm">
             <span>
               {i.name} × {i.qty}
+              {order.status === 'DELIVERED' && i.productId && (
+                <Link href={`/products/${i.productId}#reviews`} className="mt-0.5 block text-xs font-semibold text-fuchsia-600 hover:underline">Write a review</Link>
+              )}
               {i.personalization && <span className="block text-xs text-slate-500">{summary(i.personalization)}{i.personalization.note ? ` · “${i.personalization.note}”` : ''}</span>}
             </span>
             <span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
