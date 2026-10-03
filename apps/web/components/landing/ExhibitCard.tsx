@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import Icon from '@/components/Icon';
+import Stars from '@/components/Stars';
 import { rupees } from '@/lib/money';
 import type { Product } from '@/lib/api';
 
@@ -22,9 +23,7 @@ export default function ExhibitCard({ p, index }: { p: Product; index: number })
           <h3 className="mt-0.5 text-lg font-semibold leading-snug">{p.name}</h3>
           <div className="mt-1 flex items-center justify-between">
             <span className="font-bold tabular-nums">{rupees(p.price)}</span>
-            <span className="inline-flex items-center gap-1 text-sm text-amber-600">
-              <Icon name="star" size={14} filled />{p.rating}
-            </span>
+            {p.reviewCount > 0 && <Stars rating={p.rating} count={p.reviewCount} size={13} />}
           </div>
         </div>
       </div>

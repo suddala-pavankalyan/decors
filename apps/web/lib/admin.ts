@@ -6,7 +6,7 @@ export interface AdminProduct {
   id: string; name: string; category: string; price: number; stock: number; personalizable: boolean; variantLabel: string | null; variants: AdminVariant[]; rating: number; description: string;
   colorName: string; colorHex: string; tags: string[]; images: AdminImage[];
 }
-export type ProductInput = Omit<AdminProduct, 'id' | 'images' | 'variants' | 'variantLabel'>;
+export type ProductInput = Omit<AdminProduct, 'id' | 'images' | 'variants' | 'variantLabel' | 'rating' | 'reviewCount'>;
 
 export const MAX_IMAGES = 8;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

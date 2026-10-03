@@ -1,7 +1,7 @@
 export interface ProductImage { url: string; alt: string }
 export interface Product {
   id: string; name: string; category: string; price: number;
-  color: string; colorName: string; tags: string[]; rating: number; description: string;
+  color: string; colorName: string; tags: string[]; rating: number; reviewCount: number; description: string;
   image: ProductImage | null;
   /** Units left, at most 20 (above that the exact number is not shown). */
   stock: number;

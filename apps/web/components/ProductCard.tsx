@@ -7,7 +7,7 @@ import AddToCartButton from './AddToCartButton';
 import WishButton from './WishButton';
 import { rupees } from '@/lib/money';
 import { stockLabel } from '@/lib/stock';
-import Icon from './Icon';
+import Stars from './Stars';
 
 export default function ProductCard({ p, priority = false }: { p: Product; priority?: boolean }) {
   return (
@@ -37,9 +37,11 @@ export default function ProductCard({ p, priority = false }: { p: Product; prior
             {stockLabel(p.stock)}
           </span>
         )}
-        <span className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2 py-1 text-xs">
-          <Icon name="star" size={14} filled className="mr-0.5 inline-block align-[-2px] text-amber-500" />{p.rating}
-        </span>
+        {p.reviewCount > 0 && (
+          <span className="absolute bottom-3 right-3 rounded-full bg-white/85 px-2 py-1 text-xs">
+            <Stars rating={p.rating} count={p.reviewCount} size={12} />
+          </span>
+        )}
       </div>
       <div className="p-4">
         <h3 className="text-lg font-semibold">

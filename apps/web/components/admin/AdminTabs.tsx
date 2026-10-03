@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 /** Switches between the admin sections. */
-export default function AdminTabs({ active }: { active: 'dashboard' | 'products' | 'orders' | 'customers' | 'coupons' | 'shipping' | 'business' }) {
+export default function AdminTabs({ active }: { active: 'dashboard' | 'products' | 'orders' | 'customers' | 'coupons' | 'reviews' | 'shipping' | 'business' }) {
   const tab = (href: string, label: string, on: boolean) => (
     <Link href={href} aria-current={on ? 'page' : undefined}
       className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${on ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
@@ -15,6 +15,7 @@ export default function AdminTabs({ active }: { active: 'dashboard' | 'products'
       {tab('/admin/orders', 'Orders', active === 'orders')}
       {tab('/admin/customers', 'Customers', active === 'customers')}
       {tab('/admin/coupons', 'Coupons', active === 'coupons')}
+      {tab('/admin/reviews', 'Reviews', active === 'reviews')}
       {tab('/admin/shipping', 'Shipping', active === 'shipping')}
       {tab('/admin/business', 'Business & GST', active === 'business')}
     </nav>

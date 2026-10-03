@@ -40,7 +40,7 @@ public class ProductService {
   public record Overview(List<Hall> halls, List<ProductSummary> featured, List<String> popularTags, List<NamedColor> colors, List<String> tags) {}
   public record ProductDetail(
       String id, String name, String category, int price, String color, String colorName, List<String> tags,
-      double rating, String description, ImageView image, int stock, boolean personalizable, String variantLabel, List<VariantView> variants, List<ImageView> images, List<ProductSummary> related) {}
+      double rating, int reviewCount, String description, ImageView image, int stock, boolean personalizable, String variantLabel, List<VariantView> variants, List<ImageView> images, List<ProductSummary> related) {}
 
   /** Parsed, validated search filters (see {@code ProductQuery}). */
   /** An option as customers see it: its stock is capped like the product's. */
@@ -171,7 +171,7 @@ public class ProductService {
         .map((ProductImage i) -> new ImageView(views.publicUrl(i.url), i.alt)).toList();
     List<Product> related = products.related(id, p.category, p.color.id, PageRequest.of(0, 4));
     return new ProductDetail(s.id(), s.name(), s.category(), s.price(), s.color(), s.colorName(), s.tags(),
-        s.rating(), s.description(), s.image(), s.stock(), s.personalizable(), p.variantLabel, variantViews(id), all, views.summaries(related));
+        s.rating(), s.reviewCount(), s.description(), s.image(), s.stock(), s.personalizable(), p.variantLabel, variantViews(id), all, views.summaries(related));
   }
 
   /** Used by admin and account code. */
