@@ -16,10 +16,11 @@ const SORT_OPTIONS: Option[] = [
   { value: 'price-asc', label: 'Price: low to high' },
   { value: 'price-desc', label: 'Price: high to low' },
   { value: 'rating', label: 'Top rated' },
+  { value: 'newest', label: 'Newest first' },
 ];
 
 /** Identity of a filter set, used to know whether the products on screen are up to date. */
-const keyOf = (f: Filters) => JSON.stringify([f.q.trim(), f.categories, f.colors, f.tags, f.maxPrice, f.sort]);
+const keyOf = (f: Filters) => JSON.stringify([f.q.trim(), f.categories, f.colors, f.tags, f.maxPrice, f.sort, f.minRating, f.inStock]);
 
 interface Props {
   /** Filter options and the first page, fetched on the server so the page paints with content. */
@@ -37,6 +38,7 @@ export default function Catalog({ initialFacets, initialPage, initialFilters }: 
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [items, setItems] = useState<Product[]>(initialPage?.items ?? []);
   const [total, setTotal] = useState(initialPage?.total ?? 0);
+  const [corrected, setCorrected] = useState<string | null>(initialPage?.correctedQuery ?? null);
   const [hasMore, setHasMore] = useState(initialPage?.hasMore ?? false);
   const [loading, setLoading] = useState(initialPage === null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -91,6 +93,7 @@ export default function Catalog({ initialFacets, initialPage, initialFilters }: 
       try {
         const page = await fetchProducts(filters, { signal: ctl.signal });
         setItems(page.items);
+        setCorrected(page.correctedQuery ?? null);
         setTotal(page.total);
         setHasMore(page.hasMore);
         shownKey.current = key;
@@ -140,8 +143,14 @@ export default function Catalog({ initialFacets, initialPage, initialFilters }: 
     <div className="mb-6">
       <h1 className="text-4xl font-extrabold">The <span className="text-spectrum">collection</span></h1>
       <p className="mt-1 text-slate-500" aria-live="polite">
-        {total} piece{total === 1 ? '' : 's'}{filters.q.trim() ? <> for “{filters.q.trim()}”</> : null}
+        {total} piece{total === 1 ? '' : 's'}{filters.q.trim() ? <> for “{corrected ?? filters.q.trim()}”</> : null}
       </p>
+      {corrected && (
+        <p className="mt-1 text-sm text-slate-500" data-testid="did-you-mean">
+          No exact matches for “{filters.q.trim()}”, so we corrected the spelling.{' '}
+          <button type="button" onClick={() => setFilters({ ...filters, q: corrected })} className="font-semibold text-fuchsia-700 hover:underline">Search “{corrected}”</button>
+        </p>
+      )}
     </div>
     <div className="grid gap-6 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
       <div className="lg:sticky lg:top-4 lg:self-start">

@@ -61,6 +61,21 @@ export default function FilterSidebar({
         </div>
       </section>
       <section>
+        <h4 className="mb-2 font-semibold">Rating</h4>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Minimum rating">
+          {[[0, 'Any'], [4, '4★ & up'], [3, '3★ & up']].map(([v, label]) => (
+            <button key={v} type="button" aria-pressed={filters.minRating === v} onClick={() => onChange({ ...filters, minRating: v as number })}
+              className={`rounded-full border px-3 py-1 text-sm transition-colors ${filters.minRating === v ? 'border-fuchsia-500 bg-fuchsia-500 text-white' : 'border-slate-200 bg-white hover:border-fuchsia-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={filters.inStock} onChange={(e) => onChange({ ...filters, inStock: e.target.checked })} className="h-4 w-4 accent-fuchsia-500" />
+          In stock only
+        </label>
+      </section>
+      <section>
         <h4 className="mb-2 font-semibold">Max price: {rupees(filters.maxPrice)}</h4>
         <input type="range" min={10} max={facets.maxPrice} value={filters.maxPrice}
           onChange={(e) => onChange({ ...filters, maxPrice: Number(e.target.value) })}

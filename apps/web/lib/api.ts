@@ -12,7 +12,7 @@ export interface Product {
 }
 export interface Variant { id: string; label: string; price: number; stock: number }
 export interface ProductDetail extends Product { images: ProductImage[]; related: Product[]; variants: Variant[] }
-export interface ProductPage { total: number; items: Product[]; hasMore: boolean }
+export interface ProductPage { total: number; items: Product[]; hasMore: boolean; correctedQuery?: string | null }
 export interface Hall { category: string; count: number; colors: string[] }
 export interface Overview {
   halls: Hall[]; featured: Product[]; popularTags: string[];
@@ -22,7 +22,7 @@ export interface Facets {
   categories: string[]; colors: { name: string; hex: string }[]; tags: string[]; maxPrice: number;
 }
 export interface Filters {
-  q: string; categories: string[]; colors: string[]; tags: string[]; maxPrice: number; sort: string;
+  q: string; categories: string[]; colors: string[]; tags: string[]; maxPrice: number; sort: string; minRating: number; inStock: boolean;
 }
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -51,6 +51,8 @@ export async function fetchProducts(
   if (f.colors.length) p.set('colors', f.colors.join(','));
   if (f.tags.length) p.set('tags', f.tags.join(','));
   if (f.maxPrice > 0) p.set('maxPrice', String(f.maxPrice));
+  if (f.minRating > 0) p.set('minRating', String(f.minRating));
+  if (f.inStock) p.set('inStock', 'true');
   if (f.sort) p.set('sort', f.sort);
   p.set('limit', String(opts.limit ?? PAGE_SIZE));
   if (opts.offset) p.set('offset', String(opts.offset));

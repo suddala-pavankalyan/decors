@@ -170,7 +170,7 @@ async function main() {
   r = await anon.get('/products?categories=nope');
   check('unknown category matches nothing', r.status === 200 && r.json.total === 0, r.text.slice(0, 100));
   r = await anon.get('/products?q=card&limit=60');
-  check('text search', r.json.items.length > 0 && r.json.items.every((i) => /card/i.test(i.name + i.description + i.tags.join(' '))));
+  check('text search', r.json.items.length > 0 && r.json.items.every((i) => /card/i.test(i.name + i.description + i.tags.join(' ') + i.category + i.colorName)));
   r = await anon.get('/products?minPrice=100&maxPrice=150&limit=60');
   check('price range', r.json.items.every((i) => i.price >= 100 && i.price <= 150));
   r = await anon.get('/products?tags=wedding&limit=60');
@@ -1396,6 +1396,45 @@ async function main() {
     await db.query(`delete from "Color" where name = $1`, [`Review Teal ${RUN}`]);
 
     // ───── invoices ─────
+    section('search');
+    const mkp = async (name, category, price, stock, desc, colorName, hex, tags) => (await alice2.post('/admin/products', { name, category, price, stock, personalizable: false, description: desc, colorName, colorHex: hex, tags })).json;
+    const SW = `Zq${RUN}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const s1 = await mkp(`${SW} Lantern Frame`, 'wall-decor', 120, 5, 'Hand carved', `Search Saffron ${RUN}`, '#f59e0b', [`${SW}tag`]);
+    const s2 = await mkp(`Plain Print`, 'wall-decor', 80, 0, `A ${SW} lantern companion`, `Search Saffron ${RUN}`, '#f59e0b', []);
+    const s3 = await mkp(`Midnight ${SW}ish Lantern`, 'paints', 60, 4, 'Deep tones', `Search Navy ${RUN}`, '#1e3a8a', []);
+    r = await anon.get(`/products?q=${SW}&limit=60`);
+    check('word matches name, description and tag', r.status === 200 && [s1.id, s2.id, s3.id].every((id) => r.json.items.some((i) => i.id === id)) && r.json.correctedQuery == null, r.text.slice(0, 200));
+    r = await anon.get(`/products?q=${SW}%20lantern&limit=60`);
+    check('every word must match', r.json.items.length === 3 && r.json.items.every((i) => [s1.id, s2.id, s3.id].includes(i.id)));
+    r = await anon.get(`/products?q=${SW}%20frame&limit=60`);
+    check('a second word narrows the results', r.json.items.length === 1 && r.json.items[0].id === s1.id, r.text.slice(0, 200));
+    r = await anon.get(`/products?q=lantern%20${SW}&limit=60`);
+    check('best name match comes first', r.json.items[0].id === s1.id, r.json.items.map((i) => i.name));
+    r = await anon.get(`/products?q=search%20navy%20${RUN}&limit=60`);
+    check('colour names are searchable', r.json.items.length === 1 && r.json.items[0].id === s3.id, r.text.slice(0, 200));
+    r = await anon.get(`/products?q=paints%20${SW}&limit=60`);
+    check('category names are searchable', r.json.items.length === 1 && r.json.items[0].id === s3.id, r.text.slice(0, 200));
+    r = await anon.get(`/products?q=${SW}&inStock=true&limit=60`);
+    check('inStock hides sold-out products', r.json.items.length === 2 && r.json.items.every((i) => i.stock > 0), r.text.slice(0, 200));
+    r = await anon.get(`/products?q=${SW}&sort=newest&limit=60`);
+    check('newest sort puts the latest product first', r.json.items[0].id === s3.id, r.json.items.map((i) => i.name));
+    r = await anon.get(`/products?q=${SW}&minRating=1&limit=60`);
+    check('minRating hides unrated products', r.status === 200 && r.json.total === 0, r.text.slice(0, 200));
+    r = await anon.get('/products?minRating=6');
+    check('minRating is validated', r.status === 400 && JSON.stringify(r.json.message).includes('minRating'), r.text);
+    r = await anon.get('/products?sort=funny');
+    check('sort lists the new values', r.status === 400 && /newest, relevance/.test(JSON.stringify(r.json.message)), r.text);
+    r = await anon.get(`/products?q=lntern%20${SW}&limit=60`);
+    check('a typo is corrected and reported', r.status === 200 && r.json.correctedQuery === `lantern ${SW}` && r.json.items.length === 3, r.text.slice(0, 250));
+    r = await anon.get('/products?q=qqqqqzzzzz');
+    check('gibberish finds nothing and is not "corrected"', r.json.total === 0 && r.json.correctedQuery == null);
+    r = await anon.get(`/products?q=%25%5F${SW}`);
+    check('punctuation in a query is ignored', r.status === 200 && r.json.total === 3, r.text.slice(0, 120));
+    r = await anon.get('/products?q=%25');
+    check('a lone % matches nothing special', r.status === 200 && r.json.total === (await anon.get('/products')).json.total, r.text.slice(0, 120));
+    r = await anon.get(`/products?q=${'x'.repeat(50)}%20${SW}`);
+    check('long odd queries do not break', r.status === 200);
+
     section('invoices');
     const { execFileSync } = require('child_process');
     const pdfText = (buf) => { try { return execFileSync('pdftotext', ['-layout', '-', '-'], { input: buf }).toString(); } catch { return null; } };
