@@ -14,6 +14,7 @@ import com.decors.service.CouponService;
 import com.decors.service.PersonalizationService;
 import com.decors.service.ShippingService;
 import com.decors.service.StockMessages;
+import com.decors.service.VariantLookup;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
@@ -45,9 +46,11 @@ public class OrdersService {
   private final CouponService coupons;
   private final ShippingService shipping;
   private final PersonalizationService personalization;
+  private final VariantLookup variants;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping, PersonalizationService personalization) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping, PersonalizationService personalization, VariantLookup variants) {
+    this.variants = variants;
     this.personalization = personalization;
     this.shipping = shipping;
     this.coupons = coupons;
@@ -91,20 +94,26 @@ public class OrdersService {
       o.shipPincode = addr.pincode();
       // Personalised products need their card details before anything is reserved or charged.
       Map<String, String> details = new HashMap<>();
-      jdbc.sql("select \"productId\", personalization::text from \"CartItem\" where \"userId\" = :u and personalization is not null")
-          .param("u", user.id).query((rs, n) -> Map.entry(rs.getString(1), rs.getString(2))).list().forEach(e -> details.put(e.getKey(), e.getValue()));
+      jdbc.sql("select \"productId\", \"variantId\", personalization::text from \"CartItem\" where \"userId\" = :u and personalization is not null")
+          .param("u", user.id).query((rs, n) -> Map.entry(rs.getString(1) + "|" + rs.getString(2), rs.getString(3))).list().forEach(e -> details.put(e.getKey(), e.getValue()));
       LocalDate today = LocalDate.now(ShippingService.SHOP_ZONE);
+      // Each line's option (size, volume...), checked to still be on sale; its price and stock are the option's.
+      Map<CartItem, VariantLookup.Row> chosen = new java.util.IdentityHashMap<>();
+      for (CartItem c : lines) chosen.put(c, variants.resolve(c.product, c.id.variantId()));
       for (CartItem c : lines) {
-        if (c.product.personalizable) personalization.requireUsable(c.product.name, details.get(c.product.id), today);
+        if (c.product.personalizable) personalization.requireUsable(c.product.name, details.get(c.product.id + "|" + c.id.variantId()), today);
       }
       // Reserve the stock first (in a fixed order, so two checkouts never wait on each other). If any item has run
       // short the whole checkout is refused and nothing is kept.
-      for (CartItem c : lines.stream().sorted(java.util.Comparator.comparing(l -> l.product.id)).toList()) {
-        int reserved = jdbc.sql("update \"Product\" set stock = stock - :q where id = :id and stock >= :q")
-            .param("q", c.qty).param("id", c.product.id).update();
+      for (CartItem c : lines.stream().sorted(java.util.Comparator.comparing((CartItem l) -> l.product.id).thenComparing(l -> l.id.variantId())).toList()) {
+        VariantLookup.Row v = chosen.get(c);
+        String table = v == null ? "Product" : "ProductVariant";
+        String id = v == null ? c.product.id : v.id();
+        int reserved = jdbc.sql("update \"" + table + "\" set stock = stock - :q where id = :id and stock >= :q")
+            .param("q", c.qty).param("id", id).update();
         if (reserved == 0) {
-          int left = jdbc.sql("select stock from \"Product\" where id = :id").param("id", c.product.id).query(Integer.class).optional().orElse(0);
-          throw ApiException.conflict(StockMessages.shortage(c.product.name, left));
+          int left = jdbc.sql("select stock from \"" + table + "\" where id = :id").param("id", id).query(Integer.class).optional().orElse(0);
+          throw ApiException.conflict(StockMessages.shortage(v == null ? c.product.name : c.product.name + " (" + v.label() + ")", left));
         }
       }
       List<OrderItem> items = new ArrayList<>();
@@ -112,8 +121,11 @@ public class OrdersService {
         OrderItem i = new OrderItem();
         i.orderId = o.id;
         i.productId = c.product.id;
-        i.name = c.product.name;
-        i.unitPricePaise = c.product.price * 100;
+        VariantLookup.Row v = chosen.get(c);
+        i.name = v == null ? c.product.name : c.product.name + " (" + v.label() + ")";
+        i.variantId = v == null ? null : v.id();
+        i.variantLabel = v == null ? null : v.label();
+        i.unitPricePaise = (v == null ? c.product.price : v.price()) * 100;
         i.qty = c.qty;
         i.category = c.product.category;
         total += (long) i.unitPricePaise * i.qty;
@@ -138,7 +150,7 @@ public class OrdersService {
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
       for (OrderItem i : items) {
-        String d = i.productId == null ? null : details.get(i.productId);
+        String d = i.productId == null ? null : details.get(i.productId + "|" + (i.variantId == null ? "" : i.variantId));
         if (d != null) {
           jdbc.sql("update \"OrderItem\" set personalization = cast(:d as jsonb) where id = :id").param("d", d).param("id", i.id).update();
         }
@@ -173,7 +185,10 @@ public class OrdersService {
     List<CartItem> lines = cart.findForUser(user.id);
     if (lines.isEmpty()) throw ApiException.badRequest("Your cart is empty");
     long subtotal = 0;
-    for (CartItem c : lines) subtotal += (long) c.product.price * 100 * c.qty;
+    for (CartItem c : lines) {
+      VariantLookup.Row v = variants.resolve(c.product, c.id.variantId());
+      subtotal += (long) (v == null ? c.product.price : v.price()) * 100 * c.qty;
+    }
     int sub = Math.toIntExact(subtotal);
     int discount = 0;
     boolean freeShipping = false;
@@ -235,8 +250,8 @@ public class OrdersService {
       events.record(order.id, OrderStatus.PAID, "Payment received");
       // Remove what was bought from the cart; anything added since checkout started stays.
       jdbc.sql("""
-              delete from "CartItem" where "userId" = :u
-                and "productId" in (select "productId" from "OrderItem" where "orderId" = :o and "productId" is not null)
+              delete from "CartItem" c where c."userId" = :u
+                and exists (select 1 from "OrderItem" i where i."orderId" = :o and i."productId" = c."productId" and coalesce(i."variantId", '') = c."variantId")
               """)
           .param("u", order.userId).param("o", order.id).update();
       return false;

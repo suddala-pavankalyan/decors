@@ -1029,6 +1029,109 @@ async function main() {
     await alice2.del(`/admin/products/${out.id}`);
     await db.query(`delete from "Color" where name = $1`, [`Stock Teal ${RUN}`]);
 
+    // ───── product options (variants) ─────
+    section('product options');
+    const vp = (await alice2.post('/admin/products', { name: `Variant Test ${RUN}`, category: 'gift-cards', price: 10, stock: 0, personalizable: false, description: 'v', rating: 4, colorName: `Variant Teal ${RUN}`, colorHex: '#0d9488', tags: [] })).json;
+    const putVariants = (body) => alice2.put(`/admin/products/${vp.id}/variants`, body);
+    const OPT = [{ label: ' A5 ', price: 100, stock: 5 }, { label: 'A4', price: 150, stock: 3 }];
+    r = await buyer.put(`/admin/products/${vp.id}/variants`, { label: 'Size', variants: OPT });
+    check('options need admin', r.status === 403);
+    r = await putVariants({ label: '', variants: OPT });
+    check('options need a kind name', r.status === 400 && /Name the kind of option/.test(r.json.message), r.text);
+    r = await putVariants({ label: 'Size', variants: [OPT[0], { ...OPT[0], label: 'a5' }] });
+    check('option names must differ', r.status === 400 && /different name/.test(r.json.message), r.text);
+    r = await putVariants({ label: 'Size', variants: [{ ...OPT[0], price: 0 }] });
+    check('option price validated', r.status === 400, r.text);
+    r = await putVariants({ label: 'Size', variants: [{ ...OPT[0], stock: -1 }] });
+    check('option stock validated', r.status === 400, r.text);
+    r = await putVariants({ label: 'Size', variants: Array.from({ length: 13 }, (_, i) => ({ label: `S${i}`, price: 5, stock: 1 })) });
+    check('at most 12 options', r.status === 400, r.text);
+    r = await putVariants({ label: 'Size', variants: [{ ...OPT[0], active: false }] });
+    check('one option must stay on sale', r.status === 400 && /on sale/.test(r.json.message), r.text);
+    r = await putVariants({ label: 'Size', variants: [{ ...OPT[0], id: 'nope' }] });
+    check('unknown option id refused', r.status === 400, r.text);
+    r = await putVariants({ label: 'Size', variants: OPT });
+    check('save options: price is the lowest, stock the total', r.status === 200 && r.json.variantLabel === 'Size' && r.json.price === 100 && r.json.stock === 8 && r.json.variants.length === 2 && r.json.variants[0].label === 'A5' && r.json.variants[1].price === 150, r.text.slice(0, 400));
+    const [vA5, vA4] = r.json.variants;
+    r = await anon.get(`/products/${vp.id}`);
+    check('public detail lists the options', r.json.variantLabel === 'Size' && r.json.price === 100 && r.json.stock === 8 && r.json.variants.map((v) => `${v.label}:${v.price}:${v.stock}`).join() === 'A5:100:5,A4:150:3', r.text.slice(0, 400));
+    r = await anon.get('/products?q=' + encodeURIComponent(`Variant Test ${RUN}`));
+    check('listing shows it as "from" the lowest price', r.json.items[0].price === 100 && r.json.items[0].variantLabel === 'Size');
+    r = await alice2.put(`/admin/products/${vp.id}`, { name: `Variant Test ${RUN}`, category: 'gift-cards', price: 999, stock: 999, personalizable: false, description: 'v', rating: 4, colorName: `Variant Teal ${RUN}`, colorHex: '#0d9488', tags: [] });
+    check('editing the product does not overwrite what the options work out', r.status === 200 && r.json.price === 100 && r.json.stock === 8 && r.json.variants.length === 2, r.text.slice(0, 300));
+    r = await alice2.put(`/admin/products/${vp.id}/stock`, { stock: 50 });
+    check('product-level stock is refused when there are options', r.status === 409, r.text);
+
+    await buyer.del('/account/cart');
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 1 });
+    check('an option must be chosen', r.status === 400 && /Choose a size/.test(r.json.message), r.text);
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 1, variantId: 'bogus' });
+    check('a made-up option is refused', r.status === 400 && /no longer available/.test(r.json.message), r.text);
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 4, variantId: vA4.id });
+    check('stock is checked per option', r.status === 409 && r.json.message === `Only 3 of Variant Test ${RUN} (A4) are available`, r.text);
+    r = await buyer.put(`/account/cart/${pa.id}`, { qty: 1, variantId: vA4.id });
+    check('options of another product are refused', r.status === 400 && /has no options/.test(r.json.message), r.text);
+    check('option on a different product is rejected too', (await buyer.put(`/account/cart/${vp.id}`, { qty: 1, variantId: (await alice2.get(`/admin/products/${vp.id}`)).json.variants[0].id.replace(/.$/, 'x') })).status === 400);
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 2, variantId: vA4.id });
+    check('add the A4', r.status === 204, r.text);
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 1, variantId: vA5.id });
+    check('add the A5 as its own line', r.status === 204);
+    r = await buyer.get('/account/state');
+    const l4 = r.json.cart.find((l) => l.variant?.id === vA4.id), l5 = r.json.cart.find((l) => l.variant?.id === vA5.id);
+    check('the cart keeps one line per option with its price', r.json.cart.length === 2 && l4.qty === 2 && l4.variant.price === 150 && l4.variant.label === 'A4' && l5.qty === 1 && l5.variant.price === 100, r.text.slice(0, 500));
+    const opSub = (150 * 2 + 100) * 100;
+    r = await buyer.post('/coupons/validate', { code: 'NOPE-NOPE' });
+    r = await buyer.post('/checkout/preview', { pincode: '560001' });
+    check('prices use the option, not the product', r.status === 200 && r.json.subtotalPaise === opSub, r.text);
+    r = await buyer.put(`/account/cart/${vp.id}`, { qty: 0, variantId: vA5.id });
+    r = await buyer.get('/account/state');
+    check('removing one option leaves the other', r.json.cart.length === 1 && r.json.cart[0].variant.id === vA4.id);
+
+    r = await checkoutRaw(addr);
+    check('checkout charges the option price', r.status === 200 && r.json.amount >= 150 * 2 * 100, r.text);
+    const vOrder = r.json;
+    r = await buyer.get(`/orders/${vOrder.orderId}`);
+    const vi = r.json.items[0];
+    check('the order line names the option and keeps its price', vi.name === `Variant Test ${RUN} (A4)` && vi.unitPricePaise === 15000 && vi.qty === 2, vi);
+    check('checkout reserved the option stock', (await alice2.get(`/admin/products/${vp.id}`)).json.variants.find((v) => v.id === vA4.id).stock === 1);
+    check('and the product total follows', (await anon.get(`/products/${vp.id}`)).json.stock === 6);
+    await buyer.put(`/account/cart/${vp.id}`, { qty: 2, variantId: vA4.id });
+    r = await checkoutRaw(addr);
+    check('another checkout cannot take more than is left of that option', r.status === 409 && r.json.message === `Only 1 of Variant Test ${RUN} (A4) is available`, r.text);
+    await buyer.del('/account/cart');
+    r = await buyer.post(`/orders/${vOrder.orderId}/cancel`, {});
+    check('cancelling gives the option its stock back', r.status === 200 && (await alice2.get(`/admin/products/${vp.id}`)).json.variants.find((v) => v.id === vA4.id).stock === 3 && (await anon.get(`/products/${vp.id}`)).json.stock === 8);
+
+    // taking an option off sale, and removing one
+    await buyer.put(`/account/cart/${vp.id}`, { qty: 1, variantId: vA5.id });
+    r = await putVariants({ label: 'Size', variants: [{ ...vA5, active: false }, { ...vA4 }] });
+    check('switching an option off raises the "from" price', r.status === 200 && r.json.price === 150 && r.json.stock === 3, r.text.slice(0, 300));
+    r = await anon.get(`/products/${vp.id}`);
+    check('customers no longer see it', r.json.variants.length === 1 && r.json.variants[0].label === 'A4');
+    r = await checkoutRaw(addr);
+    check('a cart line for a withdrawn option cannot be bought', r.status === 400 && /no longer available/.test(r.json.message), r.text);
+    r = await putVariants({ label: 'Size', variants: [{ ...vA4, label: 'A3', price: 200 }, { label: 'A6', price: 60, stock: 9 }] });
+    check('rename, reprice and add in one save', r.status === 200 && r.json.variants.map((v) => v.label).join() === 'A3,A6' && r.json.variants[0].id === vA4.id && r.json.price === 60 && r.json.stock === 12, r.text.slice(0, 400));
+    r = await buyer.get('/account/state');
+    check('removed options take their cart lines with them', !r.json.cart.some((l) => l.variant?.id === vA5.id));
+    r = await putVariants({ label: 'Size', variants: [{ ...r0(vA4), label: 'A6' }, { label: 'A3', price: 5, stock: 1 }] });
+    function r0(v) { return { id: v.id, price: 200, stock: 3 }; }
+    check('an option can take the name of another in the same save', r.status === 200, r.text);
+
+    // merge from a guest cart
+    const now = (await alice2.get(`/admin/products/${vp.id}`)).json.variants;
+    r = await buyer.post('/account/merge', { cart: [{ productId: vp.id, qty: 2, variantId: now[0].id }, { productId: vp.id, qty: 1, variantId: 'ghost' }, { productId: vp.id, qty: 1 }], wishlist: [] });
+    check('merge keeps valid option lines and skips the rest', r.status === 200 && r.json.cart.length === 1 && r.json.cart[0].variant.id === now[0].id && r.json.cart[0].qty === 2, r.text.slice(0, 400));
+    await buyer.del('/account/cart');
+
+    r = await putVariants({ variants: [] });
+    check('an empty list turns options off', r.status === 200 && r.json.variantLabel === null && r.json.variants.length === 0, r.text.slice(0, 300));
+    r = await anon.get(`/products/${vp.id}`);
+    check('the product is a plain product again', r.json.variantLabel === null && r.json.variants.length === 0);
+    await db.query(`delete from "Order" where id in (select "orderId" from "OrderItem" where "productId" = $1)`, [vp.id]);
+    await alice2.del(`/admin/products/${vp.id}`);
+    await db.query(`delete from "Color" where name = $1`, [`Variant Teal ${RUN}`]);
+
     // ───── personalised cards ─────
     section('personalised cards');
     const card = (await alice2.post('/admin/products', { name: `Personal Card ${RUN}`, category: 'wedding-cards', price: 40, stock: 500, personalizable: true, description: 'p', rating: 4, colorName: `Personal Rose ${RUN}`, colorHex: '#e11d48', tags: [] })).json;

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import AdminGate from '@/components/admin/AdminGate';
 import ImageManager from '@/components/admin/ImageManager';
+import VariantsEditor from '@/components/admin/VariantsEditor';
 import ProductForm from '@/components/admin/ProductForm';
 import Icon from '@/components/Icon';
 import { createProduct, getProduct, updateProduct, type AdminProduct } from '@/lib/admin';
@@ -35,6 +36,7 @@ function Editor() {
       <h1 className="text-3xl font-bold">{isNew ? 'New product' : 'Edit product'}</h1>
 
       <ProductForm
+        key={product ? `${product.price}-${product.stock}-${product.variantLabel}` : 'new'}
         initial={product ?? undefined}
         submitLabel={isNew ? 'Create product' : 'Save changes'}
         onSubmit={async (input) => {
@@ -53,6 +55,7 @@ function Editor() {
       ) : (
         product && (
           <>
+            <VariantsEditor product={product} onChange={setProduct} />
             {product.images.length === 0 && <p className="text-sm text-amber-700">No photos yet. Add at least one so shoppers can see this product.</p>}
             <ImageManager productId={product.id} images={product.images} onChange={setProduct} />
           </>

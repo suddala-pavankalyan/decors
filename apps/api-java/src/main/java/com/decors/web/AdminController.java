@@ -48,6 +48,11 @@ public class AdminController {
     return admin.update(id, dto);
   }
 
+  @PutMapping("/{id}/variants")
+  public AdminService.AdminProduct setVariants(@PathVariable String id, @Valid @RequestBody AdminDtos.VariantsInput dto) {
+    return admin.setVariants(id, dto.label(), dto.variants());
+  }
+
   @PutMapping("/{id}/stock")
   public AdminService.AdminProduct setStock(@PathVariable String id, @Valid @RequestBody AdminDtos.StockInput dto) {
     return admin.setStock(id, dto.stock());

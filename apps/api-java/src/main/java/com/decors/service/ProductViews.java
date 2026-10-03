@@ -20,7 +20,7 @@ public class ProductViews {
 
   public record ProductSummary(
       String id, String name, String category, int price, String color, String colorName,
-      List<String> tags, double rating, String description, ImageView image, int stock, boolean personalizable) {}
+      List<String> tags, double rating, String description, ImageView image, int stock, boolean personalizable, String variantLabel) {}
 
   /** Customers only need to know "a few left"; the exact count above this stays private. */
   public static final int STOCK_CAP = 20;
@@ -47,7 +47,7 @@ public class ProductViews {
     for (Product p : products) {
       out.add(new ProductSummary(
           p.id, p.name, p.category.slug(), p.price, p.color.hex, p.color.name,
-          tags.getOrDefault(p.id, List.of()), p.rating, p.description, firstImage.get(p.id), Math.min(p.stock, STOCK_CAP), p.personalizable));
+          tags.getOrDefault(p.id, List.of()), p.rating, p.description, firstImage.get(p.id), Math.min(p.stock, STOCK_CAP), p.personalizable, p.variantLabel));
     }
     return out;
   }

@@ -207,8 +207,8 @@ export default function CheckoutPage() {
         <h2 className="font-semibold">Order summary</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {cart.map((l) => (
-            <li key={l.id} className="flex justify-between gap-3">
-              <span className="truncate">{l.name} × {l.qty}</span>
+            <li key={`${l.id}|${l.variantId ?? ''}`} className="flex justify-between gap-3">
+              <span className="truncate">{l.name}{l.variantLabel ? ` (${l.variantLabel})` : ''} × {l.qty}</span>
               <span className="tabular-nums">{rupees(l.price * l.qty)}</span>
             </li>
           ))}

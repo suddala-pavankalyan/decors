@@ -49,7 +49,7 @@ export default function ProductCard({ p, priority = false }: { p: Product; prior
         </h3>
         <p className="mt-1 text-sm text-slate-500">{p.description}</p>
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xl font-bold tabular-nums">{rupees(p.price)}</span>
+          <span className="text-xl font-bold tabular-nums">{p.variantLabel ? <span className="mr-1 text-xs font-medium text-slate-500">From</span> : null}{rupees(p.price)}</span>
           <AddToCartButton
             p={p}
             className="relative z-10 rounded-full px-4 py-1.5 text-sm font-semibold text-white"

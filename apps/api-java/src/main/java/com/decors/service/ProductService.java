@@ -40,9 +40,12 @@ public class ProductService {
   public record Overview(List<Hall> halls, List<ProductSummary> featured, List<String> popularTags, List<NamedColor> colors, List<String> tags) {}
   public record ProductDetail(
       String id, String name, String category, int price, String color, String colorName, List<String> tags,
-      double rating, String description, ImageView image, int stock, boolean personalizable, List<ImageView> images, List<ProductSummary> related) {}
+      double rating, String description, ImageView image, int stock, boolean personalizable, String variantLabel, List<VariantView> variants, List<ImageView> images, List<ProductSummary> related) {}
 
   /** Parsed, validated search filters (see {@code ProductQuery}). */
+  /** An option as customers see it: its stock is capped like the product's. */
+  public record VariantView(String id, String label, int price, int stock) {}
+
   public record Filters(
       String q, List<String> categories, List<String> colors, List<String> tags,
       Double minPrice, Double maxPrice, String sort, Integer limit, Integer offset) {}
@@ -53,9 +56,11 @@ public class ProductService {
   private final ProductImageRepository images;
   private final ProductViews views;
   private final JdbcClient jdbc;
+  private final VariantLookup variants;
 
   public ProductService(ProductRepository products, ColorRepository colors, TagRepository tags,
-      ProductImageRepository images, ProductViews views, JdbcClient jdbc) {
+      ProductImageRepository images, ProductViews views, JdbcClient jdbc, VariantLookup variants) {
+    this.variants = variants;
     this.products = products;
     this.colors = colors;
     this.tags = tags;
@@ -154,6 +159,11 @@ public class ProductService {
     return new Overview(halls, views.summaries(featured), popular, facets.colors(), facets.tags());
   }
 
+  private List<VariantView> variantViews(String productId) {
+    return variants.activeFor(List.of(productId)).getOrDefault(productId, List.of()).stream()
+        .map(v -> new VariantView(v.id(), v.label(), v.price(), Math.min(v.stock(), ProductViews.STOCK_CAP))).toList();
+  }
+
   public ProductDetail findOne(String id) {
     Product p = products.findWithColor(id).orElseThrow(() -> ApiException.notFound("Product not found"));
     ProductSummary s = views.summary(p);
@@ -161,7 +171,7 @@ public class ProductService {
         .map((ProductImage i) -> new ImageView(views.publicUrl(i.url), i.alt)).toList();
     List<Product> related = products.related(id, p.category, p.color.id, PageRequest.of(0, 4));
     return new ProductDetail(s.id(), s.name(), s.category(), s.price(), s.color(), s.colorName(), s.tags(),
-        s.rating(), s.description(), s.image(), s.stock(), s.personalizable(), all, views.summaries(related));
+        s.rating(), s.description(), s.image(), s.stock(), s.personalizable(), p.variantLabel, variantViews(id), all, views.summaries(related));
   }
 
   /** Used by admin and account code. */

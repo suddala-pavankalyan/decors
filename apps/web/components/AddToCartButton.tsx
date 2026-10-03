@@ -14,8 +14,9 @@ export default function AddToCartButton({
   const inCart = useStore((s) => s.cart.find((l) => l.id === p.id)?.qty ?? 0);
   const soldOut = p.stock === 0;
   // Cards with the customer's own names are added from the product page, where they type the details.
-  if (p.personalizable && !soldOut) {
-    return <Link href={`/products/${p.id}`} className={className} style={{ background: p.color }}>Personalise</Link>;
+  // Products with options (sizes, volumes) are bought from the product page too, where the option is chosen.
+  if ((p.personalizable || p.variantLabel) && !soldOut) {
+    return <Link href={`/products/${p.id}`} className={className} style={{ background: p.color }}>{p.personalizable ? 'Personalise' : `Choose ${p.variantLabel!.toLowerCase()}`}</Link>;
   }
   const atMax = !soldOut && inCart >= maxFor(p);
   if (soldOut || atMax) {

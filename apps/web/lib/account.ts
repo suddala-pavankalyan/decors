@@ -1,8 +1,8 @@
-import { API, type Product } from '@/lib/api';
+import { API, type Product, type Variant } from '@/lib/api';
 import type { Personalization } from '@/lib/personalize';
 
 export interface ServerState {
-  cart: { qty: number; personalization: Personalization | null; product: Product }[];
+  cart: { qty: number; personalization: Personalization | null; variant: Variant | null; product: Product }[];
   wishlist: Product[];
 }
 
@@ -18,10 +18,10 @@ async function req(path: string, method: string, body?: unknown): Promise<Respon
 }
 
 export const fetchState = async (): Promise<ServerState> => (await req('state', 'GET')).json();
-export const mergeGuest = async (cart: { productId: string; qty: number; personalization?: Personalization | null }[], wishlist: string[]): Promise<ServerState> =>
+export const mergeGuest = async (cart: { productId: string; variantId?: string; qty: number; personalization?: Personalization | null }[], wishlist: string[]): Promise<ServerState> =>
   (await req('merge', 'POST', { cart, wishlist })).json();
-export const putQty = (id: string, qty: number, personalization?: Personalization | null) =>
-  req(`cart/${encodeURIComponent(id)}`, 'PUT', { qty, personalization: personalization ?? undefined });
+export const putQty = (id: string, qty: number, personalization?: Personalization | null, variantId?: string) =>
+  req(`cart/${encodeURIComponent(id)}`, 'PUT', { qty, personalization: personalization ?? undefined, variantId: variantId || undefined });
 export const deleteCart = () => req('cart', 'DELETE');
 export const putWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'PUT');
 export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'DELETE');

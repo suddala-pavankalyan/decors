@@ -73,7 +73,10 @@ public class CancellationService {
         });
       }
       // The units held for this order go back on the shelf.
-      jdbc.sql("update \"Product\" p set stock = p.stock + i.qty from \"OrderItem\" i where i.\"orderId\" = :o and i.\"productId\" = p.id")
+      jdbc.sql("update \"Product\" p set stock = p.stock + i.qty from \"OrderItem\" i where i.\"orderId\" = :o and i.\"productId\" = p.id and i.\"variantId\" is null")
+          .param("o", orderId).update();
+      // Options keep their own stock (the database adds it back into the product's total).
+      jdbc.sql("update \"ProductVariant\" v set stock = v.stock + i.qty from \"OrderItem\" i where i.\"orderId\" = :o and i.\"variantId\" = v.id")
           .param("o", orderId).update();
       events.record(orderId, OrderStatus.CANCELLED, "Cancelled by " + by + (cleanReason == null ? "" : ": " + cleanReason));
       return o.razorpayPaymentId != null;

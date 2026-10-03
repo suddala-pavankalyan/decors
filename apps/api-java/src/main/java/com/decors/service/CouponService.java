@@ -31,8 +31,10 @@ public class CouponService {
 
   private final JdbcClient jdbc;
   private final CartItemRepository cart;
+  private final VariantLookup variants;
 
-  public CouponService(JdbcClient jdbc, CartItemRepository cart) {
+  public CouponService(JdbcClient jdbc, CartItemRepository cart, VariantLookup variants) {
+    this.variants = variants;
     this.jdbc = jdbc;
     this.cart = cart;
   }
@@ -102,7 +104,10 @@ public class CouponService {
     List<CartItem> lines = cart.findForUser(userId);
     if (lines.isEmpty()) throw ApiException.badRequest("Your cart is empty");
     int subtotal = 0;
-    for (CartItem l : lines) subtotal += l.product.price * 100 * l.qty;
+    for (CartItem l : lines) {
+      VariantLookup.Row v = variants.resolve(l.product, l.id.variantId());
+      subtotal += (v == null ? l.product.price : v.price()) * 100 * l.qty;
+    }
     Applied a = apply(userId, code, subtotal, false);
     return new Quote(a.code(), a.description(), subtotal, a.discountPaise(), subtotal - a.discountPaise(), a.freeShipping());
   }

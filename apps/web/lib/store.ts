@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Product } from '@/lib/api';
+import type { Product, Variant } from '@/lib/api';
 import * as account from '@/lib/account';
 import type { Personalization } from '@/lib/personalize';
 
@@ -18,13 +18,24 @@ export interface Snapshot {
   stock?: number;
   /** Wedding cards: the customer's own names, date and venue go on these. */
   personalizable?: boolean;
+  /** The kind of option the product comes in ("Size"), if it has any. */
+  variantKind?: string | null;
 }
 
 export const snapshot = (p: Product): Snapshot => ({
-  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image, stock: p.stock, personalizable: p.personalizable,
+  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image, stock: p.stock, personalizable: p.personalizable, variantKind: p.variantLabel,
 });
 
-export interface CartLine extends Snapshot { qty: number; personalization?: Personalization | null }
+export interface CartLine extends Snapshot {
+  qty: number;
+  personalization?: Personalization | null;
+  /** The option chosen for products that have them ("A4", "4 L"); price and stock above are then the option's. */
+  variantId?: string;
+  variantLabel?: string | null;
+}
+
+/** One cart line is a product in one option, so the same product can sit in the cart twice. */
+export const lineKey = (l: { id: string; variantId?: string }) => `${l.id}|${l.variantId ?? ''}`;
 
 interface State {
   cart: CartLine[];
@@ -36,10 +47,10 @@ interface State {
   adopt: (s: account.ServerState, ownerId: string) => void;
   goOffline: () => void;
   resync: () => Promise<void>;
-  addToCart: (p: Product, qty?: number, personalization?: Personalization | null) => void;
-  setPersonalization: (id: string, d: Personalization) => void;
-  setQty: (id: string, qty: number) => void;
-  removeFromCart: (id: string) => void;
+  addToCart: (p: Product, qty?: number, personalization?: Personalization | null, variant?: Variant | null) => void;
+  setPersonalization: (key: string, d: Personalization) => void;
+  setQty: (key: string, qty: number) => void;
+  removeFromCart: (key: string) => void;
   clearCart: () => void;
   toggleWish: (p: Product) => void;
 }
@@ -56,7 +67,8 @@ export const useStore = create<State>()(
         if (!get().online) return;
         op().catch(() => get().resync());
       };
-      const qtyOf = (id: string) => get().cart.find((l) => l.id === id)?.qty ?? 0;
+      const lineOf = (key: string) => get().cart.find((l) => lineKey(l) === key);
+      const qtyOf = (key: string) => lineOf(key)?.qty ?? 0;
 
       return {
         cart: [],
@@ -67,7 +79,10 @@ export const useStore = create<State>()(
           set({
             online: true,
             ownerId,
-            cart: s.cart.map((l) => ({ ...snapshot(l.product), qty: l.qty, personalization: l.personalization ?? null })),
+            cart: s.cart.map((l) => ({
+              ...snapshot(l.product), qty: l.qty, personalization: l.personalization ?? null,
+              ...(l.variant ? { variantId: l.variant.id, variantLabel: l.variant.label, price: l.variant.price, stock: l.variant.stock } : {}),
+            })),
             wishlist: s.wishlist.map(snapshot),
           }),
         // On logout, drop the account's items so they don't show up for the next person on this device.
@@ -81,32 +96,40 @@ export const useStore = create<State>()(
             /* offline or session expired: keep local state */
           }
         },
-        addToCart: (p, qty = 1, personalization = null) => {
+        addToCart: (p, qty = 1, personalization = null, variant = null) => {
+          const key = lineKey({ id: p.id, variantId: variant?.id });
+          const cap = maxFor(variant ?? p);
           set((s) => {
-            const line = s.cart.find((l) => l.id === p.id);
+            const line = s.cart.find((l) => lineKey(l) === key);
             return {
               cart: line
-                ? s.cart.map((l) => (l.id === p.id ? { ...l, qty: Math.min(maxFor(p), l.qty + qty), personalization: personalization ?? l.personalization } : l))
-                : [...s.cart, { ...snapshot(p), qty: Math.min(maxFor(p), qty), personalization }],
+                ? s.cart.map((l) => (lineKey(l) === key ? { ...l, qty: Math.min(cap, l.qty + qty), personalization: personalization ?? l.personalization } : l))
+                : [...s.cart, {
+                    ...snapshot(p), qty: Math.min(cap, qty), personalization,
+                    ...(variant ? { variantId: variant.id, variantLabel: variant.label, price: variant.price, stock: variant.stock } : {}),
+                  }],
             };
           });
-          save(() => account.putQty(p.id, qtyOf(p.id), personalization));
+          save(() => account.putQty(p.id, qtyOf(key), personalization, variant?.id));
         },
-        setPersonalization: (id, d) => {
-          set((s) => ({ cart: s.cart.map((l) => (l.id === id ? { ...l, personalization: d } : l)) }));
-          save(() => account.putQty(id, qtyOf(id), d));
+        setPersonalization: (key, d) => {
+          set((s) => ({ cart: s.cart.map((l) => (lineKey(l) === key ? { ...l, personalization: d } : l)) }));
+          const l = lineOf(key);
+          if (l) save(() => account.putQty(l.id, l.qty, d, l.variantId));
         },
-        setQty: (id, qty) => {
+        setQty: (key, qty) => {
+          const before = lineOf(key);
           set((s) => ({
             cart: s.cart
-              .map((l) => (l.id === id ? { ...l, qty: Math.min(maxFor(l), qty) } : l))
+              .map((l) => (lineKey(l) === key ? { ...l, qty: Math.min(maxFor(l), qty) } : l))
               .filter((l) => l.qty > 0),
           }));
-          save(() => account.putQty(id, qtyOf(id)));
+          if (before) save(() => account.putQty(before.id, Math.max(0, Math.min(maxFor(before), qty)), undefined, before.variantId));
         },
-        removeFromCart: (id) => {
-          set((s) => ({ cart: s.cart.filter((l) => l.id !== id) }));
-          save(() => account.putQty(id, 0));
+        removeFromCart: (key) => {
+          const before = lineOf(key);
+          set((s) => ({ cart: s.cart.filter((l) => lineKey(l) !== key) }));
+          if (before) save(() => account.putQty(before.id, 0, undefined, before.variantId));
         },
         clearCart: () => {
           set({ cart: [] });

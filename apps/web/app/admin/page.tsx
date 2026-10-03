@@ -103,7 +103,7 @@ function ProductsTable() {
             <div className="min-w-0 flex-1 basis-48">
               <p className="truncate font-semibold">{p.name}</p>
               <p className="text-sm capitalize text-slate-500">
-                {p.category.replace('-', ' ')} · {p.images.length} photo{p.images.length === 1 ? '' : 's'}
+                {p.category.replace('-', ' ')} · {p.images.length} photo{p.images.length === 1 ? '' : 's'}{p.variantLabel ? ` · ${p.variants.length} ${p.variantLabel.toLowerCase()} option${p.variants.length === 1 ? '' : 's'}` : ''}
                 {' · '}
                 <span className={p.stock === 0 ? 'font-semibold text-rose-600' : p.stock <= 5 ? 'font-semibold text-amber-700' : ''}>
                   {p.stock === 0 ? 'Sold out' : `${p.stock} in stock`}
