@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -47,12 +48,25 @@ public class RazorpayGateway {
 
   /** Creates a Razorpay order for the amount (in paise) and returns its id. */
   public String createOrder(int amountPaise, String receipt) {
+    return post("/v1/orders", Map.of("amount", amountPaise, "currency", "INR", "receipt", receipt),
+        "Could not start the payment. Please try again.", "order creation");
+  }
+
+  /** Refunds a captured payment (in full or in part) and returns the refund id. */
+  public String refund(String paymentId, int amountPaise, String orderId) {
+    return post("/v1/payments/" + URLEncoder.encode(paymentId, StandardCharsets.UTF_8) + "/refund",
+        Map.of("amount", amountPaise, "notes", Map.of("order", orderId)),
+        "Could not start the refund. It will be retried.", "refund");
+  }
+
+  /** POSTs JSON to Razorpay with Basic auth and returns the {@code id} of what it created. */
+  private String post(String path, Map<String, Object> payload, String userMessage, String what) {
     String key = keyId();
     String secret = required(cfg.keySecret());
     try {
-      String body = json.writeValueAsString(Map.of("amount", amountPaise, "currency", "INR", "receipt", receipt));
+      String body = json.writeValueAsString(payload);
       String auth = Base64.getEncoder().encodeToString((key + ":" + secret).getBytes(StandardCharsets.UTF_8));
-      HttpRequest req = HttpRequest.newBuilder(URI.create(cfg.baseUrl().replaceAll("/+$", "") + "/v1/orders"))
+      HttpRequest req = HttpRequest.newBuilder(URI.create(cfg.baseUrl().replaceAll("/+$", "") + path))
           .timeout(Duration.ofSeconds(20))
           .header("Authorization", "Basic " + auth)
           .header("Content-Type", "application/json")
@@ -68,20 +82,20 @@ public class RazorpayGateway {
         } catch (IOException ignored) {
           // keep the status code
         }
-        log.error("Razorpay order creation failed: {}", description);
-        throw ApiException.badGateway("Could not start the payment. Please try again.");
+        log.error("Razorpay {} failed: {}", what, description);
+        throw ApiException.badGateway(userMessage);
       }
       JsonNode id = json.readTree(res.body()).path("id");
-      if (!id.isTextual()) throw new IOException("response had no order id");
+      if (!id.isTextual()) throw new IOException("response had no id");
       return id.asText();
     } catch (ApiException e) {
       throw e;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw ApiException.badGateway("Could not start the payment. Please try again.");
+      throw ApiException.badGateway(userMessage);
     } catch (IOException e) {
-      log.error("Razorpay order creation failed: {}", e.getMessage());
-      throw ApiException.badGateway("Could not start the payment. Please try again.");
+      log.error("Razorpay {} failed: {}", what, e.getMessage());
+      throw ApiException.badGateway(userMessage);
     }
   }
 

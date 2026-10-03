@@ -65,7 +65,8 @@ public class AccountService {
       jdbc.sql("delete from \"CartItem\" where \"userId\" = :u and \"productId\" = :p").param("u", userId).param("p", productId).update();
       return;
     }
-    requireProduct(productId);
+    Product p = products.findById(productId).orElseThrow(() -> ApiException.notFound("Product not found"));
+    if (qty > p.stock) throw ApiException.conflict(StockMessages.shortage(p.name, p.stock));
     upsertCart(userId, productId, qty);
   }
 
@@ -102,7 +103,14 @@ public class AccountService {
     if (!guest.isEmpty()) {
       cart.findForUserAndProducts(userId, guest.keySet()).forEach(c -> have.put(c.id.productId(), c.qty));
     }
-    guest.forEach((pid, qty) -> upsertCart(userId, pid, Math.min(AccountDtos.MAX_QTY, have.getOrDefault(pid, 0) + qty)));
+    // Never put more in the cart than is in stock; a sold-out item is simply left out.
+    Map<String, Integer> stock = new HashMap<>();
+    products.findAllById(guest.keySet()).forEach(p -> stock.put(p.id, p.stock));
+    guest.forEach((pid, qty) -> {
+      int want = Math.min(AccountDtos.MAX_QTY, have.getOrDefault(pid, 0) + qty);
+      int allowed = Math.min(want, stock.getOrDefault(pid, 0));
+      if (allowed > 0) upsertCart(userId, pid, allowed);
+    });
     dto.wishlist().stream().filter(known::contains).distinct().forEach(pid -> insertWish(userId, pid));
     // The upserts above went around JPA, so drop what it cached before reading the result back.
     em.clear();

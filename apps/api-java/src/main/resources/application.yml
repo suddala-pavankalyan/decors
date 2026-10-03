@@ -53,6 +53,9 @@ decors:
     password: ${SMTP_PASS:}
     secure: ${SMTP_SECURE:false}
     from: ${MAIL_FROM:Decors <no-reply@decors.local>}
+  orders:
+    reap-interval-ms: ${ORDER_REAP_INTERVAL_MS:300000}   # how often unpaid orders are cancelled and their stock released
+    reap-initial-delay-ms: ${ORDER_REAP_INITIAL_DELAY_MS:60000}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:}
     key-secret: ${RAZORPAY_KEY_SECRET:}

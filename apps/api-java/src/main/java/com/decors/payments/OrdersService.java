@@ -6,14 +6,21 @@ import com.decors.common.Time;
 import com.decors.domain.AppUser;
 import com.decors.domain.CartItem;
 import com.decors.domain.OrderItem;
+import com.decors.domain.OrderStatus;
 import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
+import com.decors.service.AddressService;
+import com.decors.service.CouponService;
+import com.decors.service.ShippingService;
+import com.decors.service.StockMessages;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
 import com.decors.web.dto.PaymentDtos;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +38,19 @@ public class OrdersService {
   private final RazorpayGateway gateway;
   private final JdbcClient jdbc;
   private final TransactionTemplate tx;
+  private final OrderEvents events;
+  private final CancellationService cancellation;
+  private final AddressService addresses;
+  private final CouponService coupons;
+  private final ShippingService shipping;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping) {
+    this.shipping = shipping;
+    this.coupons = coupons;
+    this.addresses = addresses;
+    this.events = events;
+    this.cancellation = cancellation;
     this.users = users;
     this.cart = cart;
     this.orders = orders;
@@ -69,6 +86,16 @@ public class OrdersService {
       o.shipCity = addr.city();
       o.shipState = addr.state();
       o.shipPincode = addr.pincode();
+      // Reserve the stock first (in a fixed order, so two checkouts never wait on each other). If any item has run
+      // short the whole checkout is refused and nothing is kept.
+      for (CartItem c : lines.stream().sorted(java.util.Comparator.comparing(l -> l.product.id)).toList()) {
+        int reserved = jdbc.sql("update \"Product\" set stock = stock - :q where id = :id and stock >= :q")
+            .param("q", c.qty).param("id", c.product.id).update();
+        if (reserved == 0) {
+          int left = jdbc.sql("select stock from \"Product\" where id = :id").param("id", c.product.id).query(Integer.class).optional().orElse(0);
+          throw ApiException.conflict(StockMessages.shortage(c.product.name, left));
+        }
+      }
       List<OrderItem> items = new ArrayList<>();
       for (CartItem c : lines) {
         OrderItem i = new OrderItem();
@@ -77,15 +104,39 @@ public class OrdersService {
         i.name = c.product.name;
         i.unitPricePaise = c.product.price * 100;
         i.qty = c.qty;
+        i.category = c.product.category;
         total += (long) i.unitPricePaise * i.qty;
         items.add(i);
       }
-      o.amount = Math.toIntExact(total);
+      o.subtotalPaise = Math.toIntExact(total);
+      boolean freeShipping = false;
+      if (addr.couponCode() != null && !addr.couponCode().isBlank()) {
+        CouponService.Applied applied = coupons.apply(user.id, addr.couponCode(), o.subtotalPaise, true);
+        o.couponId = applied.couponId();
+        o.couponCode = applied.code();
+        o.discountPaise = applied.discountPaise();
+        freeShipping = applied.freeShipping();
+      }
+      ShippingService.Settings rules = shipping.settings();
+      ShippingService.Delivery delivery = ShippingService.estimate(rules, addr.pincode(), LocalDate.now(ShippingService.SHOP_ZONE));
+      if (!delivery.serviceable()) throw ApiException.badRequest("Sorry, we cannot deliver to this pincode yet");
+      o.shippingPaise = ShippingService.fee(rules, o.subtotalPaise - o.discountPaise, freeShipping);
+      o.estimatedFrom = delivery.from();
+      o.estimatedTo = delivery.to();
+      o.amount = o.subtotalPaise - o.discountPaise + o.shippingPaise;
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
+      events.record(o.id, OrderStatus.PENDING, "Order placed");
       return o;
     });
 
+    if (Boolean.TRUE.equals(addr.saveAddress())) {
+      try {
+        addresses.saveFromCheckout(user.id, addr);
+      } catch (RuntimeException e) {
+        // Remembering the address is a convenience; never let it block a purchase.
+      }
+    }
     String rzpId = gateway.createOrder(order.amount, order.id);
     jdbc.sql("update \"Order\" set \"razorpayOrderId\" = :r where id = :id").param("r", rzpId).param("id", order.id).update();
     Map<String, Object> out = new LinkedHashMap<>();
@@ -95,6 +146,37 @@ public class OrdersService {
     out.put("currency", "INR");
     out.put("keyId", gateway.keyId());
     return out;
+  }
+
+  public record Preview(int subtotalPaise, int discountPaise, int shippingPaise, int totalPaise, String couponCode,
+      boolean freeShipping, ShippingService.Delivery delivery) {}
+
+  /** What checkout would charge right now for the saved cart, a coupon and a delivery pincode. Writes nothing. */
+  public Preview preview(AppUser user, String pincode, String couponCode) {
+    List<CartItem> lines = cart.findForUser(user.id);
+    if (lines.isEmpty()) throw ApiException.badRequest("Your cart is empty");
+    long subtotal = 0;
+    for (CartItem c : lines) subtotal += (long) c.product.price * 100 * c.qty;
+    int sub = Math.toIntExact(subtotal);
+    int discount = 0;
+    boolean freeShipping = false;
+    String code = null;
+    if (couponCode != null && !couponCode.isBlank()) {
+      CouponService.Applied a = coupons.apply(user.id, couponCode, sub, false);
+      discount = a.discountPaise();
+      freeShipping = a.freeShipping();
+      code = a.code();
+    }
+    ShippingService.Settings rules = shipping.settings();
+    ShippingService.Delivery delivery = pincode == null || pincode.isBlank() ? null
+        : ShippingService.estimate(rules, validPincode(pincode), LocalDate.now(ShippingService.SHOP_ZONE));
+    int fee = ShippingService.fee(rules, sub - discount, freeShipping);
+    return new Preview(sub, discount, fee, sub - discount + fee, code, freeShipping, delivery);
+  }
+
+  private static String validPincode(String p) {
+    if (!ShippingService.validPincode(p)) throw ApiException.badRequest("Enter a 6-digit pincode");
+    return p;
   }
 
   /** Called from the browser after Razorpay reports success. */
@@ -115,43 +197,83 @@ public class OrdersService {
    * asked Razorpay to collect. The conditional update means only one of two concurrent callers wins.
    */
   public void markPaid(String razorpayOrderId, String paymentId, long paidAmount) {
-    tx.executeWithoutResult(s -> {
+    boolean refundLatePayment = Boolean.TRUE.equals(tx.execute(s -> {
       ShopOrder order = orders.findByRazorpayOrderId(razorpayOrderId).orElse(null);
-      if (order == null || order.amount != paidAmount) return;
+      if (order == null || order.amount != paidAmount) return false;
       int changed = jdbc.sql("""
               update "Order" set status = 'PAID', "razorpayPaymentId" = :pay, "paidAt" = :t
-              where id = :id and status <> 'PAID'
+              where id = :id and status = 'PENDING'
               """)
           .param("pay", paymentId).param("t", Time.now()).param("id", order.id).update();
-      if (changed == 0) return;
+      if (changed == 0) {
+        // Paid after the customer had already cancelled: keep it cancelled and give the money back.
+        int late = jdbc.sql("""
+                update "Order" set "razorpayPaymentId" = :pay, "paidAt" = :t, "refundStatus" = 'PENDING'
+                where id = :id and status = 'CANCELLED' and "razorpayPaymentId" is null
+                """)
+            .param("pay", paymentId).param("t", Time.now()).param("id", order.id).update();
+        if (late == 1) events.record(order.id, OrderStatus.CANCELLED, "Payment arrived after cancellation; refunding it");
+        return late == 1;
+      }
+      events.record(order.id, OrderStatus.PAID, "Payment received");
       // Remove what was bought from the cart; anything added since checkout started stays.
       jdbc.sql("""
               delete from "CartItem" where "userId" = :u
                 and "productId" in (select "productId" from "OrderItem" where "orderId" = :o and "productId" is not null)
               """)
           .param("u", order.userId).param("o", order.id).update();
-    });
+      return false;
+    }));
+    if (refundLatePayment) {
+      orders.findByRazorpayOrderId(razorpayOrderId).ifPresent(o -> cancellation.attemptRefund(o.id));
+    }
   }
 
   public List<Map<String, Object>> list(AppUser user) {
-    List<ShopOrder> found = orders.findByUserIdOrderByCreatedAtDesc(user.id);
-    if (found.isEmpty()) return List.of();
-    Map<String, List<OrderItem>> items = orderItems.findByOrderIdInOrderByIdAsc(found.stream().map(o -> o.id).toList())
-        .stream().collect(Collectors.groupingBy(i -> i.orderId));
-    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()))).toList();
+    return views(orders.findByUserIdOrderByCreatedAtDesc(user.id));
   }
 
   public Map<String, Object> get(AppUser user, String id) {
     ShopOrder o = orders.findByIdAndUserId(id, user.id).orElseThrow(() -> ApiException.notFound("Order not found"));
-    return view(o, orderItems.findByOrderIdInOrderByIdAsc(List.of(o.id)));
+    return views(List.of(o)).get(0);
   }
 
-  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items) {
+  /** The JSON for orders: lines and timeline are loaded for all of them in two queries. */
+  public List<Map<String, Object>> views(List<ShopOrder> found) {
+    if (found.isEmpty()) return List.of();
+    List<String> ids = found.stream().map(o -> o.id).toList();
+    Map<String, List<OrderItem>> items = orderItems.findByOrderIdInOrderByIdAsc(ids)
+        .stream().collect(Collectors.groupingBy(i -> i.orderId));
+    Map<String, List<Map<String, Object>>> events = new HashMap<>();
+    jdbc.sql("""
+            select "orderId", status::text as status, note, "createdAt" from "OrderEvent"
+            where "orderId" in (:ids) order by "createdAt", id
+            """)
+        .param("ids", ids)
+        .query((rs, n) -> {
+          Map<String, Object> e = new LinkedHashMap<>();
+          e.put("status", rs.getString("status"));
+          e.put("note", rs.getString("note"));
+          e.put("createdAt", iso(rs.getObject("createdAt", LocalDateTime.class)));
+          return Map.entry(rs.getString("orderId"), e);
+        })
+        .list()
+        .forEach(en -> events.computeIfAbsent(en.getKey(), k -> new ArrayList<>()).add(en.getValue()));
+    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()), events.getOrDefault(o.id, List.of()))).toList();
+  }
+
+  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items, List<Map<String, Object>> events) {
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("id", o.id);
     m.put("userId", o.userId);
     m.put("status", o.status.name());
     m.put("amount", o.amount);
+    m.put("subtotalPaise", o.subtotalPaise);
+    m.put("discountPaise", o.discountPaise);
+    m.put("shippingPaise", o.shippingPaise);
+    m.put("estimatedFrom", o.estimatedFrom);
+    m.put("estimatedTo", o.estimatedTo);
+    m.put("couponCode", o.couponCode);
     m.put("currency", o.currency);
     m.put("razorpayOrderId", o.razorpayOrderId);
     m.put("razorpayPaymentId", o.razorpayPaymentId);
@@ -164,6 +286,11 @@ public class OrdersService {
     m.put("shipPincode", o.shipPincode);
     m.put("createdAt", iso(o.createdAt));
     m.put("paidAt", iso(o.paidAt));
+    m.put("carrier", o.carrier);
+    m.put("trackingNumber", o.trackingNumber);
+    m.put("cancelReason", o.cancelReason);
+    m.put("refundStatus", o.refundStatus);
+    m.put("refundedAt", iso(o.refundedAt));
     m.put("items", items.stream().map(i -> {
       Map<String, Object> im = new LinkedHashMap<>();
       im.put("id", i.id);
@@ -174,6 +301,7 @@ public class OrdersService {
       im.put("qty", i.qty);
       return im;
     }).toList());
+    m.put("events", events);
     return m;
   }
 

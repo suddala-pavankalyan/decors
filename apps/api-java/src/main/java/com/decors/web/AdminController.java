@@ -22,14 +22,15 @@ public class AdminController {
   }
 
   @GetMapping
-  public AdminService.AdminPage list(@RequestParam(required = false) String q,
+  public AdminService.AdminPage list(@RequestParam(required = false) String q, @RequestParam(required = false) String stock,
       @RequestParam(required = false) Integer limit, @RequestParam(required = false) Integer offset) {
     if (q != null && q.trim().length() > 100) throw ApiException.badRequest("q must be shorter than or equal to 100 characters");
     if (limit != null && limit < 1) throw ApiException.badRequest("limit must not be less than 1");
     if (limit != null && limit > 100) throw ApiException.badRequest("limit must not be greater than 100");
     if (offset != null && offset < 0) throw ApiException.badRequest("offset must not be less than 0");
     if (offset != null && offset > 100000) throw ApiException.badRequest("offset must not be greater than 100000");
-    return admin.list(q, limit, offset);
+    if (stock != null && !stock.isEmpty() && !stock.equals("low") && !stock.equals("out")) throw ApiException.badRequest("stock must be low or out");
+    return admin.list(q, stock, limit, offset);
   }
 
   @GetMapping("/{id}")
@@ -45,6 +46,11 @@ public class AdminController {
   @PutMapping("/{id}")
   public AdminService.AdminProduct update(@PathVariable String id, @Valid @RequestBody AdminDtos.ProductInput dto) {
     return admin.update(id, dto);
+  }
+
+  @PutMapping("/{id}/stock")
+  public AdminService.AdminProduct setStock(@PathVariable String id, @Valid @RequestBody AdminDtos.StockInput dto) {
+    return admin.setStock(id, dto.stock());
   }
 
   @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)

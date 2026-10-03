@@ -13,10 +13,12 @@ export interface Snapshot {
   color: string;
   category: string;
   image: Product['image'];
+  /** Units available when this was saved (older saved carts do not have it). */
+  stock?: number;
 }
 
 export const snapshot = (p: Product): Snapshot => ({
-  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image,
+  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image, stock: p.stock,
 });
 
 export interface CartLine extends Snapshot { qty: number }
@@ -39,6 +41,8 @@ interface State {
 }
 
 export const MAX_QTY = 99;
+/** Most of an item a cart may hold: 99, or what is in stock if that is less. */
+export const maxFor = (p: { stock?: number }) => Math.min(MAX_QTY, p.stock ?? MAX_QTY);
 
 export const useStore = create<State>()(
   persist(
@@ -78,8 +82,8 @@ export const useStore = create<State>()(
             const line = s.cart.find((l) => l.id === p.id);
             return {
               cart: line
-                ? s.cart.map((l) => (l.id === p.id ? { ...l, qty: Math.min(MAX_QTY, l.qty + qty) } : l))
-                : [...s.cart, { ...snapshot(p), qty }],
+                ? s.cart.map((l) => (l.id === p.id ? { ...l, qty: Math.min(maxFor(p), l.qty + qty) } : l))
+                : [...s.cart, { ...snapshot(p), qty: Math.min(maxFor(p), qty) }],
             };
           });
           save(() => account.putQty(p.id, qtyOf(p.id)));
@@ -87,7 +91,7 @@ export const useStore = create<State>()(
         setQty: (id, qty) => {
           set((s) => ({
             cart: s.cart
-              .map((l) => (l.id === id ? { ...l, qty: Math.min(MAX_QTY, qty) } : l))
+              .map((l) => (l.id === id ? { ...l, qty: Math.min(maxFor(l), qty) } : l))
               .filter((l) => l.qty > 0),
           }));
           save(() => account.putQty(id, qtyOf(id)));

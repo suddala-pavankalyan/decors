@@ -27,6 +27,8 @@ public class Product {
   @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   public Category category;
   public int price;
+  /** Units available to buy. Reserved at checkout, given back when an order is cancelled. */
+  public int stock;
   public double rating;
   public String description;
   @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "colorId")

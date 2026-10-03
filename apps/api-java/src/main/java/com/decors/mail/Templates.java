@@ -54,4 +54,30 @@ public final class Templates {
             "<p style=\"margin:0;line-height:1.6\">Hi " + esc(name) + ", the password for your Decors account was just changed and you were signed out everywhere. If this was you, there is nothing more to do. If it was not, reset your password right away.</p>",
             "Reset my password", link));
   }
+
+  /** Sent when an order ships or is delivered. {@code carrier} and {@code tracking} may be null. */
+  public static MailMessage orderUpdate(String to, String name, String orderId, boolean delivered, String carrier, String tracking, String link) {
+    boolean hasCarrier = carrier != null && !carrier.isBlank();
+    boolean hasTracking = tracking != null && !tracking.isBlank();
+    String shipment = hasCarrier && hasTracking ? "Carrier: " + carrier + ", tracking number " + tracking
+        : hasCarrier ? "Carrier: " + carrier
+        : hasTracking ? "Tracking number: " + tracking : "";
+    String headline = delivered ? "Your order was delivered" : "Your order is on its way";
+    String sentence = delivered
+        ? "your order " + orderId + " has been delivered. We hope you love it!"
+        : "your order " + orderId + " has shipped." + (shipment.isEmpty() ? "" : " " + shipment + ".");
+    return new MailMessage(to, headline,
+        "Hi " + name + ",\n\n" + sentence.substring(0, 1).toUpperCase() + sentence.substring(1) + "\n\nSee the details: " + link + "\n",
+        layout(headline, "<p style=\"margin:0;line-height:1.6\">Hi " + esc(name) + ", " + esc(sentence) + "</p>", "View my order", link));
+  }
+
+  /** Sent when an order is cancelled. {@code refund} is the refund amount text (such as "₹90"), or null if nothing was paid. */
+  public static MailMessage orderCancelled(String to, String name, String orderId, String refund, String link) {
+    String line = refund == null
+        ? "Your order " + orderId + " has been cancelled. You were not charged."
+        : "Your order " + orderId + " has been cancelled. We are refunding " + refund + " to your original payment method; it usually shows up within 5-7 working days.";
+    return new MailMessage(to, "Your Decors order was cancelled",
+        "Hi " + name + ",\n\n" + line + "\n\nSee the details: " + link + "\n",
+        layout("Your order was cancelled", "<p style=\"margin:0;line-height:1.6\">Hi " + esc(name) + ", " + esc(line.substring(0, 1).toLowerCase() + line.substring(1)) + "</p>", "View my order", link));
+  }
 }

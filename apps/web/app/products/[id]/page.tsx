@@ -8,6 +8,8 @@ import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
+import DeliveryCheck from '@/components/DeliveryCheck';
+import { stockLabel } from '@/lib/stock';
 
 type Props = { params: { id: string } };
 
@@ -36,6 +38,9 @@ export default async function ProductPage({ params }: Props) {
             <Icon name="star" size={18} filled className="mr-1 inline-block align-[-3px]" />{p.rating}
           </p>
           <p className="mt-4 text-3xl font-bold tabular-nums">{rupees(p.price)}</p>
+          {stockLabel(p.stock) && (
+            <p className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold ${p.stock === 0 ? 'bg-slate-900 text-white' : 'bg-amber-100 text-amber-800'}`}>{stockLabel(p.stock)}</p>
+          )}
           <p className="mt-4 text-slate-600">{p.description}</p>
 
           <div className="mt-6 flex items-center gap-2 text-sm">
@@ -56,6 +61,7 @@ export default async function ProductPage({ params }: Props) {
             />
             <WishButton p={p} className="border border-slate-200" />
           </div>
+          <DeliveryCheck />
         </section>
       </div>
 

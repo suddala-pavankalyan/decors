@@ -24,13 +24,20 @@ export const deleteCart = () => req('cart', 'DELETE');
 export const putWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'PUT');
 export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'DELETE');
 
+export type OrderStatus = 'PENDING' | 'PAID' | 'PACKED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
+export interface OrderEvent { status: OrderStatus; note: string | null; createdAt: string }
 export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number }
 export interface Order {
-  id: string; status: 'PENDING' | 'PAID'; amount: number; currency: string; createdAt: string; paidAt: string | null;
+  id: string; status: OrderStatus; amount: number; subtotalPaise: number; discountPaise: number; shippingPaise: number; couponCode: string | null;
+  estimatedFrom: string | null; estimatedTo: string | null; currency: string; createdAt: string; paidAt: string | null;
   razorpayPaymentId: string | null;
   shipName: string; shipPhone: string; shipLine1: string; shipLine2: string | null;
   shipCity: string; shipState: string; shipPincode: string;
+  carrier: string | null; trackingNumber: string | null;
+  cancelReason: string | null; refundStatus: RefundStatus | null; refundedAt: string | null;
   items: OrderItem[];
+  events: OrderEvent[];
 }
 export interface Address { name: string; phone: string; line1: string; line2: string; city: string; state: string; pincode: string }
 export interface CheckoutSession { orderId: string; razorpayOrderId: string; amount: number; currency: string; keyId: string }
@@ -47,10 +54,42 @@ async function json<T>(path: string, method = 'GET', body?: unknown): Promise<T>
     try { const j = await res.json(); msg = Array.isArray(j.message) ? j.message.join('. ') : j.message ?? msg; } catch {}
     throw new Error(msg);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
-export const startCheckout = (a: Address) => json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined });
+export const startCheckout = (a: Address, saveAddress = false, couponCode?: string) =>
+  json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined, saveAddress, couponCode });
+
+export interface Delivery {
+  serviceable: boolean; pincode: string; minDays: number | null; maxDays: number | null; from: string | null; to: string | null;
+  feePaise: number; freeAbovePaise: number | null;
+}
+export interface CheckoutPreview {
+  subtotalPaise: number; discountPaise: number; shippingPaise: number; totalPaise: number; couponCode: string | null;
+  freeShipping: boolean; delivery: Delivery | null;
+}
+export const previewCheckout = (pincode: string | undefined, couponCode: string | undefined) =>
+  json<CheckoutPreview>('checkout/preview', 'POST', { pincode: pincode || undefined, couponCode: couponCode || undefined });
+export const fetchEstimate = (pincode: string) => json<Delivery>(`shipping/estimate?pincode=${encodeURIComponent(pincode)}`);
+
+export interface CouponQuote { code: string; description: string | null; subtotalPaise: number; discountPaise: number; totalPaise: number }
+export const validateCoupon = (code: string) => json<CouponQuote>('coupons/validate', 'POST', { code });
 export const verifyPayment = (orderId: string, r: PaymentResult) => json<Order>('checkout/verify', 'POST', { orderId, ...r });
 export const fetchOrders = () => json<Order[]>('orders');
 export const fetchOrder = (id: string) => json<Order>(`orders/${encodeURIComponent(id)}`);
+export const cancelOrder = (id: string, reason?: string) =>
+  json<Order>(`orders/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason?.trim() || undefined });
+
+export interface SavedAddress extends Address { id: string; line2: string; isDefault: boolean }
+type Wire = Omit<SavedAddress, 'line2'> & { line2: string | null };
+const fromWire = (a: Wire): SavedAddress => ({ ...a, line2: a.line2 ?? '' });
+const body = (a: Address, isDefault?: boolean) => ({ ...a, line2: a.line2 || undefined, isDefault });
+
+export const fetchAddresses = async () => (await json<Wire[]>('account/addresses')).map(fromWire);
+export const createAddress = async (a: Address, isDefault = false) => fromWire(await json<Wire>('account/addresses', 'POST', body(a, isDefault)));
+export const updateAddress = async (id: string, a: Address, isDefault?: boolean) =>
+  fromWire(await json<Wire>(`account/addresses/${encodeURIComponent(id)}`, 'PUT', body(a, isDefault)));
+export const makeDefaultAddress = async (id: string) =>
+  (await json<Wire[]>(`account/addresses/${encodeURIComponent(id)}/default`, 'POST')).map(fromWire);
+export const deleteAddress = (id: string) => json<void>(`account/addresses/${encodeURIComponent(id)}`, 'DELETE');

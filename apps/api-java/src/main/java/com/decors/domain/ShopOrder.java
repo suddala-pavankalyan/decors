@@ -19,6 +19,13 @@ public class ShopOrder {
   @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   public OrderStatus status = OrderStatus.PENDING;
   public int amount;
+  public int subtotalPaise;
+  public int discountPaise;
+  public int shippingPaise;
+  public java.time.LocalDate estimatedFrom;
+  public java.time.LocalDate estimatedTo;
+  public String couponId;
+  public String couponCode;
   public String currency = "INR";
   public String razorpayOrderId;
   public String razorpayPaymentId;
@@ -31,4 +38,13 @@ public class ShopOrder {
   public String shipPincode;
   public LocalDateTime createdAt;
   public LocalDateTime paidAt;
+  public String invoiceNumber;
+  public java.time.LocalDate invoiceDate;
+  public String carrier;
+  public String trackingNumber;
+  public String cancelReason;
+  /** null, PENDING, PROCESSING, PROCESSED or FAILED. */
+  public String refundStatus;
+  public String refundId;
+  public LocalDateTime refundedAt;
 }

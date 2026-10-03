@@ -6,6 +6,7 @@ import type { Product } from '@/lib/api';
 import AddToCartButton from './AddToCartButton';
 import WishButton from './WishButton';
 import { rupees } from '@/lib/money';
+import { stockLabel } from '@/lib/stock';
 import Icon from './Icon';
 
 export default function ProductCard({ p, priority = false }: { p: Product; priority?: boolean }) {
@@ -31,6 +32,11 @@ export default function ProductCard({ p, priority = false }: { p: Product; prior
           {p.category.replace('-', ' ')}
         </span>
         <WishButton p={p} className="absolute right-3 top-3 z-10" />
+        {stockLabel(p.stock) && (
+          <span className={`absolute bottom-3 left-3 rounded-full px-2.5 py-1 text-xs font-semibold ${p.stock === 0 ? 'bg-slate-900/80 text-white' : 'bg-amber-100 text-amber-800'}`}>
+            {stockLabel(p.stock)}
+          </span>
+        )}
         <span className="absolute bottom-3 right-3 rounded-full bg-white/80 px-2 py-1 text-xs">
           <Icon name="star" size={14} filled className="mr-0.5 inline-block align-[-2px] text-amber-500" />{p.rating}
         </span>

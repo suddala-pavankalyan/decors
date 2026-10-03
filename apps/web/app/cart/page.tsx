@@ -2,7 +2,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MAX_QTY, useHydrated, useStore } from '@/lib/store';
+import { maxFor, useHydrated, useStore } from '@/lib/store';
+import { stockLabel } from '@/lib/stock';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
 
@@ -47,10 +48,15 @@ export default function CartPage() {
                       <button type="button" aria-label="Decrease quantity" onClick={() => setQty(l.id, l.qty - 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200"><Icon name="minus" size={14} /></button>
                       <span className="w-6 text-center text-sm">{l.qty}</span>
-                      <button type="button" aria-label="Increase quantity" disabled={l.qty >= MAX_QTY}
+                      <button type="button" aria-label="Increase quantity" disabled={l.qty >= maxFor(l)}
                         onClick={() => setQty(l.id, l.qty + 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 disabled:opacity-40"><Icon name="plus" size={14} /></button>
                     </div>
+                    {l.stock !== undefined && (l.qty > l.stock || stockLabel(l.stock)) && (
+                      <p role={l.qty > l.stock ? 'alert' : undefined} className={`mt-1 text-xs font-medium ${l.qty > l.stock ? 'text-rose-600' : 'text-amber-700'}`}>
+                        {l.stock === 0 ? 'Sold out: remove it to check out.' : l.qty > l.stock ? `Only ${l.stock} left: lower the quantity to check out.` : stockLabel(l.stock)}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-bold tabular-nums">{rupees(l.price * l.qty)}</p>

@@ -2,6 +2,7 @@ package com.decors.web;
 
 import com.decors.common.ApiException;
 import com.decors.domain.AppUser;
+import com.decors.payments.CancellationService;
 import com.decors.payments.OrdersService;
 import com.decors.payments.RazorpayGateway;
 import com.decors.security.Authenticated;
@@ -21,8 +22,12 @@ public class PaymentsController {
   private final OrdersService orders;
   private final RazorpayGateway gateway;
   private final ObjectMapper json;
+  private final CancellationService cancellation;
+  private final com.decors.invoice.InvoiceService invoices;
 
-  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json) {
+  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json, CancellationService cancellation, com.decors.invoice.InvoiceService invoices) {
+    this.invoices = invoices;
+    this.cancellation = cancellation;
     this.orders = orders;
     this.gateway = gateway;
     this.json = json;
@@ -33,6 +38,12 @@ public class PaymentsController {
     return orders.checkout(user, address);
   }
 
+  /** What the order would cost with this pincode and coupon: items, discount, shipping, total and delivery dates. */
+  @PostMapping("/checkout/preview") @Authenticated @RateLimit(limit = 60)
+  public OrdersService.Preview preview(@CurrentUser AppUser user, @Valid @RequestBody PaymentDtos.Preview dto) {
+    return orders.preview(user, dto.pincode(), dto.couponCode());
+  }
+
   @PostMapping("/checkout/verify") @Authenticated @RateLimit(limit = 20)
   public Map<String, Object> verify(@CurrentUser AppUser user, @Valid @RequestBody PaymentDtos.Verify dto) {
     return orders.verify(user, dto);
@@ -41,6 +52,28 @@ public class PaymentsController {
   @GetMapping("/orders") @Authenticated
   public List<Map<String, Object>> list(@CurrentUser AppUser user) {
     return orders.list(user);
+  }
+
+  @PostMapping("/orders/{id}/cancel") @Authenticated @RateLimit(limit = 10)
+  public Map<String, Object> cancel(@CurrentUser AppUser user, @PathVariable String id,
+      @Valid @RequestBody(required = false) PaymentDtos.Cancel dto) {
+    orders.get(user, id); // 404 unless it is the caller's own order
+    cancellation.cancel(id, "you", dto == null ? null : dto.reason());
+    return orders.get(user, id);
+  }
+
+  @GetMapping("/orders/{id}/invoice.pdf") @Authenticated
+  public org.springframework.http.ResponseEntity<byte[]> invoice(@CurrentUser AppUser user, @PathVariable String id) {
+    orders.get(user, id); // 404 unless it is the caller's own order
+    return pdf(invoices.invoice(id));
+  }
+
+  static org.springframework.http.ResponseEntity<byte[]> pdf(com.decors.invoice.InvoiceService.Pdf p) {
+    return org.springframework.http.ResponseEntity.ok()
+        .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+        .header("Content-Disposition", "attachment; filename=\"" + p.filename() + "\"")
+        .header("Cache-Control", "private, no-store")
+        .body(p.bytes());
   }
 
   @GetMapping("/orders/{id}") @Authenticated
