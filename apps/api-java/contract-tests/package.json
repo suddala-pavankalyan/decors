@@ -1,0 +1,13 @@
+{
+  "name": "decors-contract-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Black-box HTTP tests that run against either backend (NestJS or Spring Boot) to prove they behave the same.",
+  "scripts": {
+    "test": "node contract.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "smtp-server": "^3.13.6"
+  }
+}

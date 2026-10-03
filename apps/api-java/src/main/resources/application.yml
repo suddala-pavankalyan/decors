@@ -1,0 +1,65 @@
+server:
+  port: ${PORT:4000}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: decors-api
+  threads:
+    virtual:
+      enabled: true          # cheap threads for I/O-heavy requests (Java 21)
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none         # the schema is owned by migrations (Flyway here, Prisma in apps/api)
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    properties:
+      hibernate:
+        globally_quoted_identifiers: true    # the shared schema uses quoted camelCase names ("Product"."colorId")
+        default_batch_fetch_size: 50
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    # Flyway's bookkeeping table lives in its own schema ("flyway") so the app's "public" schema contains only the
+    # app's tables. That keeps Prisma (apps/api) from seeing it as drift when both backends share one database.
+    default-schema: flyway
+    schemas: public,flyway
+    create-schemas: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jackson:
+    default-property-inclusion: always
+    serialization:
+      write-dates-as-timestamps: false
+  main:
+    banner-mode: off
+
+decors:
+  env: ${APP_ENV:${NODE_ENV:development}}
+  jwt-secret: ${JWT_SECRET:}
+  web-origin: ${WEB_ORIGIN:http://localhost:3000}
+  api-public-url: ${API_PUBLIC_URL:http://localhost:4000}
+  upload-dir: ${UPLOAD_DIR:uploads}
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    user: ${SMTP_USER:}
+    password: ${SMTP_PASS:}
+    secure: ${SMTP_SECURE:false}
+    from: ${MAIL_FROM:Decors <no-reply@decors.local>}
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+    base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com}   # only changed in tests
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.orm.deprecation: ERROR
