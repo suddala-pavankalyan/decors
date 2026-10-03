@@ -10,6 +10,7 @@ import com.decors.domain.OrderStatus;
 import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
 import com.decors.service.AddressService;
+import com.decors.service.CouponService;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
@@ -37,9 +38,11 @@ public class OrdersService {
   private final OrderEvents events;
   private final CancellationService cancellation;
   private final AddressService addresses;
+  private final CouponService coupons;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons) {
+    this.coupons = coupons;
     this.addresses = addresses;
     this.events = events;
     this.cancellation = cancellation;
@@ -89,7 +92,14 @@ public class OrdersService {
         total += (long) i.unitPricePaise * i.qty;
         items.add(i);
       }
-      o.amount = Math.toIntExact(total);
+      o.subtotalPaise = Math.toIntExact(total);
+      if (addr.couponCode() != null && !addr.couponCode().isBlank()) {
+        CouponService.Applied applied = coupons.apply(user.id, addr.couponCode(), o.subtotalPaise, true);
+        o.couponId = applied.couponId();
+        o.couponCode = applied.code();
+        o.discountPaise = applied.discountPaise();
+      }
+      o.amount = o.subtotalPaise - o.discountPaise;
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
       events.record(o.id, OrderStatus.PENDING, "Order placed");
@@ -203,6 +213,9 @@ public class OrdersService {
     m.put("userId", o.userId);
     m.put("status", o.status.name());
     m.put("amount", o.amount);
+    m.put("subtotalPaise", o.subtotalPaise);
+    m.put("discountPaise", o.discountPaise);
+    m.put("couponCode", o.couponCode);
     m.put("currency", o.currency);
     m.put("razorpayOrderId", o.razorpayOrderId);
     m.put("razorpayPaymentId", o.razorpayPaymentId);

@@ -118,6 +118,12 @@ export default function OrderPage() {
             <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
           </li>
         ))}
+        {order.discountPaise > 0 && (
+          <>
+            <li className="flex justify-between border-t pt-2 text-sm text-slate-600"><span>Subtotal</span><span className="tabular-nums">{fromPaise(order.subtotalPaise)}</span></li>
+            <li className="flex justify-between text-sm text-emerald-700"><span>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span><span className="tabular-nums">−{fromPaise(order.discountPaise)}</span></li>
+          </>
+        )}
         <li className="flex justify-between border-t pt-2 font-bold"><span>Total</span><span className="tabular-nums">{fromPaise(order.amount)}</span></li>
       </ul>
       <section className="mt-4 rounded-2xl bg-white p-4 text-sm shadow">

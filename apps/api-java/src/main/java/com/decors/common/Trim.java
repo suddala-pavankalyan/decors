@@ -24,6 +24,14 @@ public class Trim extends StdDeserializer<String> {
     return s.trim();
   }
 
+  /** Same, and upper-cased: for coupon codes. */
+  public static class Upper extends Trim {
+    @Override
+    protected String normalize(String s) {
+      return s.trim().toUpperCase();
+    }
+  }
+
   /** Same, and lower-cased: for email addresses. */
   public static class Lower extends Trim {
     @Override

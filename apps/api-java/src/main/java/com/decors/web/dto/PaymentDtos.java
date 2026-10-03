@@ -32,7 +32,10 @@ public final class PaymentDtos {
       @Pattern(regexp = "^[1-9]\\d{5}$", message = "pincode must be 6 digits")
       String pincode,
       /** Checkout only: also keep this address in the customer's address book. */
-      Boolean saveAddress) {}
+      Boolean saveAddress,
+      /** Checkout only: a discount code to apply. */
+      @JsonDeserialize(using = Trim.Upper.class) @Size(max = 40, message = "couponCode must be shorter than or equal to 40 characters")
+      String couponCode) {}
 
   /** A saved address: the same fields, plus whether it is the default. */
   public record SavedAddress(
@@ -69,4 +72,9 @@ public final class PaymentDtos {
       @JsonDeserialize(using = Trim.class)
       @Size(max = 200, message = "reason must be shorter than or equal to 200 characters")
       String reason) {}
+
+  public record ApplyCoupon(
+      @JsonDeserialize(using = Trim.Upper.class) @NotNull(message = "code must be a string")
+      @Size(min = 1, max = 40, message = "code must be longer than or equal to 1 and shorter than or equal to 40 characters")
+      String code) {}
 }

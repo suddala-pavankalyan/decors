@@ -19,6 +19,10 @@ public class ShopOrder {
   @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   public OrderStatus status = OrderStatus.PENDING;
   public int amount;
+  public int subtotalPaise;
+  public int discountPaise;
+  public String couponId;
+  public String couponCode;
   public String currency = "INR";
   public String razorpayOrderId;
   public String razorpayPaymentId;

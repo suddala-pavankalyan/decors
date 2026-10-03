@@ -88,4 +88,25 @@ public final class AdminDtos {
       @JsonDeserialize(using = Trim.class)
       @Size(max = 80, message = "trackingNumber must be shorter than or equal to 80 characters")
       String trackingNumber) {}
+
+  /** Dates are ISO-8601 (such as 2026-12-31T18:29:59.000Z); leave a field out or null for "no limit". */
+  public record CouponInput(
+      @JsonDeserialize(using = Trim.Upper.class) @NotNull(message = "code must be a string")
+      @Pattern(regexp = "^[A-Z0-9_-]{3,20}$", message = "code must be 3-20 letters, numbers, dashes or underscores")
+      String code,
+      @JsonDeserialize(using = Trim.class)
+      @Size(max = 120, message = "description must be shorter than or equal to 120 characters")
+      String description,
+      @NotNull(message = "type must be PERCENT or FLAT") @Pattern(regexp = "^(PERCENT|FLAT)$", message = "type must be PERCENT or FLAT")
+      String type,
+      @NotNull(message = "value must be an integer number") @Min(value = 1, message = "value must not be less than 1")
+      @Max(value = 100_000_000, message = "value must not be greater than 100000000")
+      Integer value,
+      @Min(value = 1, message = "maxDiscountPaise must not be less than 1") Integer maxDiscountPaise,
+      @Min(value = 0, message = "minOrderPaise must not be less than 0") Integer minOrderPaise,
+      java.time.Instant startsAt,
+      java.time.Instant expiresAt,
+      @Min(value = 1, message = "usageLimit must not be less than 1") Integer usageLimit,
+      @Min(value = 1, message = "perUserLimit must not be less than 1") Integer perUserLimit,
+      Boolean active) {}
 }

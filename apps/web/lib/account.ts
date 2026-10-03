@@ -29,7 +29,7 @@ export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 export interface OrderEvent { status: OrderStatus; note: string | null; createdAt: string }
 export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number }
 export interface Order {
-  id: string; status: OrderStatus; amount: number; currency: string; createdAt: string; paidAt: string | null;
+  id: string; status: OrderStatus; amount: number; subtotalPaise: number; discountPaise: number; couponCode: string | null; currency: string; createdAt: string; paidAt: string | null;
   razorpayPaymentId: string | null;
   shipName: string; shipPhone: string; shipLine1: string; shipLine2: string | null;
   shipCity: string; shipState: string; shipPincode: string;
@@ -57,8 +57,11 @@ async function json<T>(path: string, method = 'GET', body?: unknown): Promise<T>
   return res.json();
 }
 
-export const startCheckout = (a: Address, saveAddress = false) =>
-  json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined, saveAddress });
+export const startCheckout = (a: Address, saveAddress = false, couponCode?: string) =>
+  json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined, saveAddress, couponCode });
+
+export interface CouponQuote { code: string; description: string | null; subtotalPaise: number; discountPaise: number; totalPaise: number }
+export const validateCoupon = (code: string) => json<CouponQuote>('coupons/validate', 'POST', { code });
 export const verifyPayment = (orderId: string, r: PaymentResult) => json<Order>('checkout/verify', 'POST', { orderId, ...r });
 export const fetchOrders = () => json<Order[]>('orders');
 export const fetchOrder = (id: string) => json<Order>(`orders/${encodeURIComponent(id)}`);

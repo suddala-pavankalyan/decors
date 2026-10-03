@@ -741,6 +741,114 @@ async function main() {
     check('admin cancel + refund', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED' && r.json.events.some((e) => e.note === 'Cancelled by the shop: out of stock'), r.text.slice(0, 300));
     r = await alice2.get('/admin/orders?status=CANCELLED&limit=100');
     check('cancelled filter and counts', r.json.items.length >= 5 && r.json.counts.CANCELLED >= 5, r.json.counts);
+
+    // ───── coupons ─────
+    section('coupons');
+    const U = RUN.toUpperCase();
+    const input = (o = {}) => ({ code: `P${U}`, type: 'PERCENT', value: 10, maxDiscountPaise: 500, minOrderPaise: 0, perUserLimit: 1, ...o });
+    r = await buyer.get('/admin/coupons');
+    check('coupon admin needs admin', r.status === 403);
+    r = await anon.get('/admin/coupons');
+    check('coupon admin needs login', r.status === 401);
+    r = await alice2.post('/admin/coupons', input({ code: 'a b' }));
+    check('code format validated', r.status === 400 && JSON.stringify(r.json.message).includes('code must be 3-20'), r.text);
+    r = await alice2.post('/admin/coupons', input({ type: 'WEIRD' }));
+    check('type validated', r.status === 400, r.text);
+    r = await alice2.post('/admin/coupons', input({ value: 150 }));
+    check('over 100% refused', r.status === 400 && /100%/.test(r.json.message), r.text);
+    r = await alice2.post('/admin/coupons', input({ type: 'FLAT', value: 500 }));
+    check('cap only for percentage coupons', r.status === 400, r.text);
+    r = await alice2.post('/admin/coupons', input({ startsAt: '2030-01-02T00:00:00Z', expiresAt: '2030-01-01T00:00:00Z' }));
+    check('expiry must follow start', r.status === 400, r.text);
+    r = await alice2.post('/admin/coupons', input({ code: ` p${RUN} ` }));
+    check('create coupon (code trimmed and upper-cased)', r.status === 201 && r.json.code === `P${U}` && r.json.type === 'PERCENT' && r.json.state === 'ACTIVE' && r.json.redemptions === 0 && r.json.active === true, r.text);
+    const pct = r.json;
+    r = await alice2.post('/admin/coupons', input());
+    check('duplicate code → 409', r.status === 409, r.text);
+    r = await alice2.put(`/admin/coupons/${pct.id}`, input({ description: 'Ten percent', value: 10 }));
+    check('update coupon', r.status === 200 && r.json.description === 'Ten percent', r.text);
+    r = await alice2.get('/admin/coupons');
+    check('list coupons', r.status === 200 && r.json.some((c) => c.id === pct.id));
+    r = await alice2.get('/admin/coupons/nope');
+    check('unknown coupon → 404', r.status === 404);
+    const tmp = (await alice2.post('/admin/coupons', input({ code: `T${U}` }))).json;
+    r = await alice2.del(`/admin/coupons/${tmp.id}`);
+    check('unused coupon can be deleted', r.status === 204);
+
+    // the buyer's saved cart: pa × 2 and pc × 1
+    await buyer.put(`/account/cart/${pa.id}`, { qty: 2 });
+    await buyer.put(`/account/cart/${pc.id}`, { qty: 1 });
+    const state = (await buyer.get('/account/state')).json;
+    const subtotal = state.cart.reduce((n, l) => n + l.product.price * 100 * l.qty, 0);
+    const quote = (code) => buyer.post('/coupons/validate', { code });
+    const mk = async (o) => (await alice2.post('/admin/coupons', input(o))).json;
+    r = await anon.post('/coupons/validate', { code: 'X' });
+    check('validate needs login', r.status === 401);
+    r = await quote('NOPE-NOPE');
+    check('unknown code → 400', r.status === 400 && r.json.message === 'This coupon code is not valid', r.text);
+    r = await quote(`p${RUN}`);
+    check('quote: percentage with cap', r.status === 200 && r.json.code === `P${U}` && r.json.subtotalPaise === subtotal && r.json.discountPaise === Math.min(Math.floor(subtotal / 10), 500) && r.json.totalPaise === subtotal - r.json.discountPaise, r.text);
+    const flat = await mk({ code: `F${U}`, type: 'FLAT', value: 2500, maxDiscountPaise: null, perUserLimit: null });
+    r = await quote(flat.code);
+    check('quote: flat amount', r.status === 200 && r.json.discountPaise === Math.min(2500, subtotal - 100), r.text);
+    const huge = await mk({ code: `H${U}`, type: 'FLAT', value: subtotal * 2, maxDiscountPaise: null, perUserLimit: null });
+    r = await quote(huge.code);
+    check('never discounts below ₹1', r.status === 200 && r.json.totalPaise === 100, r.text);
+    const min = await mk({ code: `M${U}`, type: 'FLAT', value: 100, maxDiscountPaise: null, minOrderPaise: subtotal + 100 });
+    r = await quote(min.code);
+    check('minimum order enforced', r.status === 400 && /Add ₹1 more/.test(r.json.message), r.text);
+    const old = await mk({ code: `E${U}`, expiresAt: '2020-01-01T00:00:00Z' });
+    r = await quote(old.code);
+    check('expired coupon refused', r.status === 400 && /expired/.test(r.json.message), r.text);
+    const soon = await mk({ code: `S${U}`, startsAt: '2099-01-01T00:00:00Z' });
+    r = await quote(soon.code);
+    check('scheduled coupon refused', r.status === 400 && /not active yet/.test(r.json.message), r.text);
+    const off = await mk({ code: `O${U}`, active: false });
+    r = await quote(off.code);
+    check('switched-off coupon refused', r.status === 400 && /not valid/.test(r.json.message), r.text);
+    r = await alice2.get('/admin/coupons');
+    check('states in the list', ['EXPIRED', 'SCHEDULED', 'INACTIVE', 'ACTIVE'].every((st) => r.json.some((c) => c.state === st)));
+
+    const payWith = async (code) => {
+      let res = await buyer.post('/checkout', { ...addr, couponCode: code });
+      if (res.status === 429) { await new Promise((x) => setTimeout(x, 61_000)); res = await buyer.post('/checkout', { ...addr, couponCode: code }); }
+      return res;
+    };
+    r = await payWith('BADCODE');
+    check('checkout with an invalid code is refused', r.status === 400 && /not valid/.test(r.json.message), r.text);
+    const ordersBefore = (await buyer.get('/orders')).json.length;
+    r = await payWith(`p${RUN}`);
+    const disc = Math.min(Math.floor(subtotal / 10), 500);
+    check('checkout applies the discount on the server', r.status === 200 && r.json.amount === subtotal - disc && rzpCalls.at(-1).body.amount === subtotal - disc, r.text);
+    const couponOrder = r.json;
+    r = await buyer.get(`/orders/${couponOrder.orderId}`);
+    check('order records subtotal, discount and code', r.json.subtotalPaise === subtotal && r.json.discountPaise === disc && r.json.couponCode === `P${U}` && r.json.amount === subtotal - disc, r.text.slice(0, 300));
+    check('refused checkout created no order', (await buyer.get('/orders')).json.length === ordersBefore + 1);
+    r = await quote(`P${U}`);
+    check('one use per customer while the order is open', r.status === 400 && /already used/.test(r.json.message), r.text);
+    r = await payWith(`P${U}`);
+    check('checkout enforces the per-customer limit too', r.status === 400 && /already used/.test(r.json.message), r.text);
+    r = await alice2.get(`/admin/coupons/${pct.id}`);
+    check('redemptions counted', r.json.redemptions === 1, r.json);
+    r = await alice2.del(`/admin/coupons/${pct.id}`);
+    check('used coupon cannot be deleted', r.status === 409, r.text);
+    r = await buyer.post(`/orders/${couponOrder.orderId}/cancel`, {});
+    check('cancelling the order', r.status === 200);
+    r = await quote(`P${U}`);
+    check('a cancelled order releases the coupon', r.status === 200, r.text);
+
+    const single = await mk({ code: `L${U}`, type: 'FLAT', value: 100, maxDiscountPaise: null, usageLimit: 1, perUserLimit: null });
+    r = await payWith(single.code);
+    check('order with a one-time coupon', r.status === 200 && r.json.amount === subtotal - 100, r.text);
+    r = await quote(single.code);
+    check('usage limit reached', r.status === 400 && /fully redeemed/.test(r.json.message), r.text);
+    r = await alice2.get(`/admin/coupons/${single.id}`);
+    check('exhausted state', r.json.state === 'EXHAUSTED' && r.json.redemptions === 1, r.json);
+    await db.query(`update "Order" set "createdAt" = now() - interval '2 hours' where "couponId" = $1 and status = 'PENDING'`, [single.id]);
+    r = await quote(single.code);
+    check('an abandoned unpaid order releases the coupon after 30 minutes', r.status === 200, r.text);
+    await db.query(`delete from "Order" where "couponId" in (select id from "Coupon" where code like $1)`, [`%${U}`]);
+    await db.query(`delete from "Coupon" where code like $1`, [`%${U}`]);
   }
 
   // ───────────────────────── rate limits ─────────────────────────

@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ResendVerification from '@/components/ResendVerification';
 import AddressFields, { EMPTY_ADDRESS } from '@/components/AddressFields';
-import { fetchAddresses, startCheckout, verifyPayment, type Address, type SavedAddress } from '@/lib/account';
+import { fetchAddresses, startCheckout, validateCoupon, verifyPayment, type Address, type CouponQuote, type SavedAddress } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
-import { rupees } from '@/lib/money';
+import { fromPaise, rupees } from '@/lib/money';
 import { loadRazorpay } from '@/lib/razorpay';
 import { useHydrated, useStore } from '@/lib/store';
 
@@ -24,6 +24,10 @@ export default function CheckoutPage() {
   const [saved, setSaved] = useState<SavedAddress[]>([]);
   const [picked, setPicked] = useState<string | null>(null); // id of the chosen saved address, null = typing a new one
   const [remember, setRemember] = useState(true);
+  const [code, setCode] = useState('');
+  const [quote, setQuote] = useState<CouponQuote | null>(null);
+  const [couponError, setCouponError] = useState('');
+  const [applying, setApplying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [paidOrder, setPaidOrder] = useState<string | null>(null);
@@ -57,6 +61,23 @@ export default function CheckoutPage() {
   }
 
   const subtotal = cart.reduce((n, l) => n + l.price * l.qty, 0);
+  async function applyCoupon(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!code.trim()) return;
+    setApplying(true);
+    setCouponError('');
+    try {
+      setQuote(await validateCoupon(code));
+    } catch (err) {
+      setQuote(null);
+      setCouponError(err instanceof Error ? err.message : 'Could not apply the coupon');
+    } finally {
+      setApplying(false);
+    }
+  }
+  const total = quote ? quote.totalPaise / 100 : subtotal;
+
   const isNew = !saved.some((a) => sameAddress(a, addr));
   const choose = (a: SavedAddress | null) => { setPicked(a?.id ?? null); setAddr(a ?? EMPTY_ADDRESS); };
   const edit = (next: Address) => { setAddr(next); if (picked && !sameAddress(saved.find((a) => a.id === picked)!, next)) setPicked(null); };
@@ -66,7 +87,7 @@ export default function CheckoutPage() {
     setError('');
     setBusy(true);
     try {
-      const session = await startCheckout(addr, remember && isNew);
+      const session = await startCheckout(addr, remember && isNew, quote?.code);
       await loadRazorpay();
       const Razorpay = window.Razorpay!;
       const rzp = new Razorpay({
@@ -153,7 +174,7 @@ export default function CheckoutPage() {
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <button type="submit" disabled={busy || !user.emailVerified}
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-3 font-semibold text-white disabled:opacity-60">
-          {busy ? 'Opening payment…' : `Pay ${rupees(subtotal)}`}
+          {busy ? 'Opening payment…' : `Pay ${rupees(total)}`}
         </button>
         <p className="text-center text-xs text-slate-500">Payments are processed securely by Razorpay.</p>
       </form>
@@ -168,8 +189,31 @@ export default function CheckoutPage() {
             </li>
           ))}
         </ul>
-        <div className="mt-4 flex justify-between border-t pt-3 font-bold">
-          <span>Total</span><span className="tabular-nums">{rupees(subtotal)}</span>
+        <div className="mt-4 border-t pt-3">
+          {quote ? (
+            <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <span><strong>{quote.code}</strong> applied</span>
+              <button type="button" onClick={() => { setQuote(null); setCode(''); }} className="text-xs underline">Remove</button>
+            </div>
+          ) : (
+            <form onSubmit={applyCoupon} className="flex gap-2" aria-label="Coupon">
+              <input value={code} onChange={(e) => { setCode(e.target.value); setCouponError(''); }} placeholder="Coupon code" aria-label="Coupon code" maxLength={40}
+                className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm uppercase outline-none focus:border-fuchsia-400" />
+              <button type="submit" disabled={applying || !code.trim()} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                {applying ? '…' : 'Apply'}
+              </button>
+            </form>
+          )}
+          {couponError && <p role="alert" className="mt-2 text-xs text-rose-600">{couponError}</p>}
+        </div>
+        <div className="mt-3 space-y-1 text-sm">
+          {quote && (
+            <>
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="tabular-nums">{rupees(subtotal)}</span></div>
+              <div className="flex justify-between text-emerald-700"><span>Discount</span><span className="tabular-nums">−{fromPaise(quote.discountPaise)}</span></div>
+            </>
+          )}
+          <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="tabular-nums">{rupees(total)}</span></div>
         </div>
         <p className="mt-2 text-xs text-slate-500">The final amount is confirmed by our server at payment time.</p>
       </aside>
