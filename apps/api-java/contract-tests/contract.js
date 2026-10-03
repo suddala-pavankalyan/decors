@@ -1095,6 +1095,59 @@ async function main() {
     await alice2.del(`/admin/products/${card.id}`);
     await db.query(`delete from "Color" where name = $1`, [`Personal Rose ${RUN}`]);
 
+    // ───── dashboard and customers ─────
+    section('dashboard');
+    r = await buyer.get('/admin/dashboard');
+    check('dashboard needs admin', r.status === 403);
+    r = await anon.get('/admin/dashboard');
+    check('dashboard needs login', r.status === 401);
+    r = await alice2.get('/admin/dashboard?days=5');
+    check('range must be 7, 30 or 90', r.status === 400 && /days must be one of/.test(r.json.message), r.text);
+    const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+    const dBefore = (await alice2.get('/admin/dashboard?days=7')).json;
+    check('dashboard shape', dBefore.days === 7 && dBefore.to === today && dBefore.daily.length === 7 && dBefore.daily.at(-1).date === today && dBefore.daily[0].date === new Date(Date.now() + 5.5 * 3600_000 - 6 * 86400_000).toISOString().slice(0, 10) && Array.isArray(dBefore.topProducts) && Array.isArray(dBefore.lowStock) && Array.isArray(dBefore.recent) && 'CANCELLED' in dBefore.statusCounts && typeof dBefore.revenue.previous === 'number', JSON.stringify(dBefore).slice(0, 300));
+    check('daily series adds up to the total', dBefore.daily.reduce((n, d) => n + d.revenuePaise, 0) === dBefore.revenue.value && dBefore.daily.reduce((n, d) => n + d.orders, 0) === dBefore.orders.value);
+    r = await alice2.get('/admin/dashboard');
+    check('default range is 30 days', r.json.days === 30 && r.json.daily.length === 30);
+    await db.query('update "Product" set stock = 2 where id = $1', [pb.id]);
+    await buyer.del('/account/cart');
+    await buyer.put(`/account/cart/${pa.id}`, { qty: 2 });
+    const dOrder = await (async () => {
+      const c = (await checkoutRaw(addr)).json;
+      const pid = `pay_${RUN}_dash`;
+      await buyer.post('/checkout/verify', { orderId: c.orderId, razorpay_order_id: c.razorpayOrderId, razorpay_payment_id: pid, razorpay_signature: hmac(KEY_SECRET, `${c.razorpayOrderId}|${pid}`) });
+      return c;
+    })();
+    const dAfter = (await alice2.get('/admin/dashboard?days=7')).json;
+    check('a paid order adds to revenue and the order count', dAfter.revenue.value === dBefore.revenue.value + dOrder.amount && dAfter.orders.value === dBefore.orders.value + 1, [dBefore.revenue, dAfter.revenue]);
+    check("it lands on today's bar", dAfter.daily.at(-1).revenuePaise === dBefore.daily.at(-1).revenuePaise + dOrder.amount && dAfter.daily.at(-1).orders === dBefore.daily.at(-1).orders + 1);
+    check('it counts as waiting to be shipped', dAfter.toShip === dBefore.toShip + 1 && dAfter.statusCounts.PAID === dBefore.statusCounts.PAID + 1);
+    check('top products include what was bought', dAfter.topProducts.some((t) => t.productId === pa.id && t.units >= 2 && t.salesPaise >= pa.price * 200), dAfter.topProducts);
+    check('recent orders lead with it', dAfter.recent[0].id === dOrder.orderId && dAfter.recent[0].status === 'PAID' && /Buyer/.test(dAfter.recent[0].customerName), dAfter.recent[0]);
+    check('low-stock list includes a product with 2 left', dAfter.lowStock.some((l) => l.id === pb.id && l.stock === 2), dAfter.lowStock);
+    await buyer.post(`/orders/${dOrder.orderId}/cancel`, {});
+    const dCancelled = (await alice2.get('/admin/dashboard?days=7')).json;
+    check('a cancelled order leaves revenue and shows as refunded', dCancelled.revenue.value === dBefore.revenue.value && dCancelled.orders.value === dBefore.orders.value && dCancelled.refunded.value === dBefore.refunded.value + dOrder.amount, [dBefore.refunded, dCancelled.refunded]);
+    check('and counts as cancelled', dCancelled.statusCounts.CANCELLED === dBefore.statusCounts.CANCELLED + 1);
+
+    r = await buyer.get('/admin/customers');
+    check('customers need admin', r.status === 403);
+    r = await alice2.get('/admin/customers?limit=0');
+    check('customers limit validated', r.status === 400);
+    r = await alice2.get(`/admin/customers?q=${encodeURIComponent(buyerEmail)}`);
+    const me = r.json.items[0];
+    check('customer search by email', r.status === 200 && r.json.total === 1 && me.email === buyerEmail && me.emailVerified === true && me.role === 'USER' && me.orders >= 1 && me.spentPaise >= dOrder.amount && /^\d{4}-/.test(me.lastOrderAt), r.text.slice(0, 300));
+    check('no password material in the list', !('passwordHash' in me) && !JSON.stringify(r.json).includes('passwordHash'));
+    r = await alice2.get(`/admin/customers?q=${encodeURIComponent(rivalEmail)}`);
+    check('a customer without orders shows zero', r.json.total === 1 && r.json.items[0].orders === 0 && r.json.items[0].spentPaise === 0 && r.json.items[0].lastOrderAt === null, r.text.slice(0, 300));
+    r = await alice2.get('/admin/customers?limit=1&offset=0');
+    const first1 = r.json.items[0]?.id;
+    r = await alice2.get('/admin/customers?limit=1&offset=1');
+    check('customers are paged without repeats', r.json.items.length === 1 && r.json.items[0].id !== first1 && r.json.total >= 3, r.text.slice(0, 200));
+    r = await alice2.get('/admin/customers?q=%25');
+    check('search wildcards are escaped', r.json.total === 0, r.json.total);
+    await db.query(`delete from "Order" where id = $1`, [dOrder.orderId]);
+
     // ───── invoices ─────
     section('invoices');
     const { execFileSync } = require('child_process');

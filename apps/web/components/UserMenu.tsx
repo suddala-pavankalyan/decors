@@ -108,7 +108,7 @@ export default function UserMenu({ user }: { user: User }) {
             <div className="my-1 border-t border-slate-100" role="separator" />
             {link('/profile', 'user', 'Your profile')}
             {link('/orders', 'box', 'Your orders')}
-            {user.role === 'ADMIN' && link('/admin', 'dashboard', 'Admin')}
+            {user.role === 'ADMIN' && link('/admin/dashboard', 'dashboard', 'Admin')}
             <div className="my-1 border-t border-slate-100" role="separator" />
             <button
               type="button"
