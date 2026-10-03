@@ -6,6 +6,9 @@ import { maxFor, useHydrated, useStore } from '@/lib/store';
 import { stockLabel } from '@/lib/stock';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
+import PersonalizeEditor from '@/components/PersonalizeEditor';
+import { problem, summary } from '@/lib/personalize';
+import { useState } from 'react';
 
 export default function CartPage() {
   const hydrated = useHydrated();
@@ -13,10 +16,14 @@ export default function CartPage() {
   const setQty = useStore((s) => s.setQty);
   const remove = useStore((s) => s.removeFromCart);
   const clear = useStore((s) => s.clearCart);
+  const setDetails = useStore((s) => s.setPersonalization);
+  const [editing, setEditing] = useState<string | null>(null);
 
   if (!hydrated) return <main className="p-10 text-center">Loading…</main>;
 
   const subtotal = cart.reduce((n, l) => n + l.price * l.qty, 0);
+  const needDetails = cart.filter((l) => l.personalizable && (!l.personalization || problem(l.personalization)));
+  const editingLine = cart.find((l) => l.id === editing);
 
   return (
     <main className="mx-auto max-w-4xl px-4 pb-16">
@@ -52,6 +59,18 @@ export default function CartPage() {
                         onClick={() => setQty(l.id, l.qty + 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 disabled:opacity-40"><Icon name="plus" size={14} /></button>
                     </div>
+                    {l.personalizable && (
+                      <div className="mt-2 text-xs">
+                        {l.personalization && !problem(l.personalization) ? (
+                          <p className="text-slate-600" data-testid="card-summary">{summary(l.personalization)}</p>
+                        ) : (
+                          <p role="alert" className="font-medium text-rose-600">{l.personalization ? 'The event date has passed or details are incomplete.' : 'Add your names, date and venue to check out.'}</p>
+                        )}
+                        <button type="button" onClick={() => setEditing(l.id)} className="mt-0.5 font-semibold text-fuchsia-700 hover:underline">
+                          {l.personalization ? 'Edit card details' : 'Add card details'}
+                        </button>
+                      </div>
+                    )}
                     {l.stock !== undefined && (l.qty > l.stock || stockLabel(l.stock)) && (
                       <p role={l.qty > l.stock ? 'alert' : undefined} className={`mt-1 text-xs font-medium ${l.qty > l.stock ? 'text-rose-600' : 'text-amber-700'}`}>
                         {l.stock === 0 ? 'Sold out: remove it to check out.' : l.qty > l.stock ? `Only ${l.stock} left: lower the quantity to check out.` : stockLabel(l.stock)}
@@ -75,14 +94,27 @@ export default function CartPage() {
               <span>Subtotal</span><span className="font-bold tabular-nums">{rupees(subtotal)}</span>
             </div>
             <p className="mt-1 text-xs text-slate-500">Shipping and tax are calculated at checkout.</p>
-            <Link href="/checkout"
-              className="mt-4 block w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-2.5 text-center font-semibold text-white">
-              Checkout
-            </Link>
+            {needDetails.length > 0 ? (
+              <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">Add the card details for {needDetails.map((l) => l.name).join(', ')} to check out.</p>
+            ) : (
+              <Link href="/checkout"
+                className="mt-4 block w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-2.5 text-center font-semibold text-white">
+                Checkout
+              </Link>
+            )}
             <button type="button" onClick={clear} className="mt-3 w-full text-xs text-slate-500 hover:underline">
               Clear cart
             </button>
           </aside>
+        </div>
+      )}
+      {editingLine && (
+        <div role="dialog" aria-modal="true" aria-label={`Card details for ${editingLine.name}`} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4">
+          <div className="my-8 w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="mb-4 text-xl font-bold">{editingLine.name}</h2>
+            <PersonalizeEditor initial={editingLine.personalization} accent={editingLine.color} productName={editingLine.name} submitLabel="Save details"
+              onSubmit={(d) => { setDetails(editingLine.id, d); setEditing(null); }} onCancel={() => setEditing(null)} />
+          </div>
         </div>
       )}
     </main>

@@ -29,6 +29,8 @@ public class Product {
   public int price;
   /** Units available to buy. Reserved at checkout, given back when an order is cancelled. */
   public int stock;
+  /** Customers can add their own names, date and venue (wedding cards). */
+  public boolean personalizable;
   public double rating;
   public String description;
   @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "colorId")

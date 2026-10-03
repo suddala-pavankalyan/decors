@@ -55,6 +55,7 @@ public final class AdminDtos {
       @NotNull(message = "stock must be an integer number") @Min(value = 0, message = "stock must not be less than 0")
       @Max(value = 1_000_000, message = "stock must not be greater than 1000000")
       Integer stock,
+      @NotNull(message = "personalizable must be a boolean value") Boolean personalizable,
       @JsonDeserialize(using = Trim.class) @NotNull(message = "description must be a string")
       @Size(min = 1, max = 2000, message = "description must be longer than or equal to 1 and shorter than or equal to 2000 characters")
       String description,

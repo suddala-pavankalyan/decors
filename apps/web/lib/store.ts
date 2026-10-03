@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Product } from '@/lib/api';
 import * as account from '@/lib/account';
+import type { Personalization } from '@/lib/personalize';
 
 // Only what the cart/wishlist pages need to render, so they work without refetching.
 export interface Snapshot {
@@ -15,13 +16,15 @@ export interface Snapshot {
   image: Product['image'];
   /** Units available when this was saved (older saved carts do not have it). */
   stock?: number;
+  /** Wedding cards: the customer's own names, date and venue go on these. */
+  personalizable?: boolean;
 }
 
 export const snapshot = (p: Product): Snapshot => ({
-  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image, stock: p.stock,
+  id: p.id, name: p.name, price: p.price, color: p.color, category: p.category, image: p.image, stock: p.stock, personalizable: p.personalizable,
 });
 
-export interface CartLine extends Snapshot { qty: number }
+export interface CartLine extends Snapshot { qty: number; personalization?: Personalization | null }
 
 interface State {
   cart: CartLine[];
@@ -33,7 +36,8 @@ interface State {
   adopt: (s: account.ServerState, ownerId: string) => void;
   goOffline: () => void;
   resync: () => Promise<void>;
-  addToCart: (p: Product, qty?: number) => void;
+  addToCart: (p: Product, qty?: number, personalization?: Personalization | null) => void;
+  setPersonalization: (id: string, d: Personalization) => void;
   setQty: (id: string, qty: number) => void;
   removeFromCart: (id: string) => void;
   clearCart: () => void;
@@ -63,7 +67,7 @@ export const useStore = create<State>()(
           set({
             online: true,
             ownerId,
-            cart: s.cart.map((l) => ({ ...snapshot(l.product), qty: l.qty })),
+            cart: s.cart.map((l) => ({ ...snapshot(l.product), qty: l.qty, personalization: l.personalization ?? null })),
             wishlist: s.wishlist.map(snapshot),
           }),
         // On logout, drop the account's items so they don't show up for the next person on this device.
@@ -77,16 +81,20 @@ export const useStore = create<State>()(
             /* offline or session expired: keep local state */
           }
         },
-        addToCart: (p, qty = 1) => {
+        addToCart: (p, qty = 1, personalization = null) => {
           set((s) => {
             const line = s.cart.find((l) => l.id === p.id);
             return {
               cart: line
-                ? s.cart.map((l) => (l.id === p.id ? { ...l, qty: Math.min(maxFor(p), l.qty + qty) } : l))
-                : [...s.cart, { ...snapshot(p), qty: Math.min(maxFor(p), qty) }],
+                ? s.cart.map((l) => (l.id === p.id ? { ...l, qty: Math.min(maxFor(p), l.qty + qty), personalization: personalization ?? l.personalization } : l))
+                : [...s.cart, { ...snapshot(p), qty: Math.min(maxFor(p), qty), personalization }],
             };
           });
-          save(() => account.putQty(p.id, qtyOf(p.id)));
+          save(() => account.putQty(p.id, qtyOf(p.id), personalization));
+        },
+        setPersonalization: (id, d) => {
+          set((s) => ({ cart: s.cart.map((l) => (l.id === id ? { ...l, personalization: d } : l)) }));
+          save(() => account.putQty(id, qtyOf(id), d));
         },
         setQty: (id, qty) => {
           set((s) => ({

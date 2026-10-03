@@ -11,6 +11,7 @@ import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
 import com.decors.service.AddressService;
 import com.decors.service.CouponService;
+import com.decors.service.PersonalizationService;
 import com.decors.service.ShippingService;
 import com.decors.service.StockMessages;
 import com.decors.repo.Repositories.OrderItemRepository;
@@ -43,9 +44,11 @@ public class OrdersService {
   private final AddressService addresses;
   private final CouponService coupons;
   private final ShippingService shipping;
+  private final PersonalizationService personalization;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping, PersonalizationService personalization) {
+    this.personalization = personalization;
     this.shipping = shipping;
     this.coupons = coupons;
     this.addresses = addresses;
@@ -86,6 +89,14 @@ public class OrdersService {
       o.shipCity = addr.city();
       o.shipState = addr.state();
       o.shipPincode = addr.pincode();
+      // Personalised products need their card details before anything is reserved or charged.
+      Map<String, String> details = new HashMap<>();
+      jdbc.sql("select \"productId\", personalization::text from \"CartItem\" where \"userId\" = :u and personalization is not null")
+          .param("u", user.id).query((rs, n) -> Map.entry(rs.getString(1), rs.getString(2))).list().forEach(e -> details.put(e.getKey(), e.getValue()));
+      LocalDate today = LocalDate.now(ShippingService.SHOP_ZONE);
+      for (CartItem c : lines) {
+        if (c.product.personalizable) personalization.requireUsable(c.product.name, details.get(c.product.id), today);
+      }
       // Reserve the stock first (in a fixed order, so two checkouts never wait on each other). If any item has run
       // short the whole checkout is refused and nothing is kept.
       for (CartItem c : lines.stream().sorted(java.util.Comparator.comparing(l -> l.product.id)).toList()) {
@@ -126,6 +137,12 @@ public class OrdersService {
       o.amount = o.subtotalPaise - o.discountPaise + o.shippingPaise;
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
+      for (OrderItem i : items) {
+        String d = i.productId == null ? null : details.get(i.productId);
+        if (d != null) {
+          jdbc.sql("update \"OrderItem\" set personalization = cast(:d as jsonb) where id = :id").param("d", d).param("id", i.id).update();
+        }
+      }
       events.record(o.id, OrderStatus.PENDING, "Order placed");
       return o;
     });
@@ -259,10 +276,15 @@ public class OrdersService {
         })
         .list()
         .forEach(en -> events.computeIfAbsent(en.getKey(), k -> new ArrayList<>()).add(en.getValue()));
-    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()), events.getOrDefault(o.id, List.of()))).toList();
+    Map<Integer, com.fasterxml.jackson.databind.JsonNode> cards = new HashMap<>();
+    jdbc.sql("select id, personalization::text from \"OrderItem\" where \"orderId\" in (:ids) and personalization is not null")
+        .param("ids", ids).query((rs, n) -> Map.entry(rs.getInt(1), rs.getString(2))).list()
+        .forEach(e -> cards.put(e.getKey(), personalization.read(e.getValue())));
+    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()), events.getOrDefault(o.id, List.of()), cards)).toList();
   }
 
-  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items, List<Map<String, Object>> events) {
+  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items, List<Map<String, Object>> events,
+      Map<Integer, com.fasterxml.jackson.databind.JsonNode> cards) {
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("id", o.id);
     m.put("userId", o.userId);
@@ -299,6 +321,7 @@ public class OrdersService {
       im.put("name", i.name);
       im.put("unitPricePaise", i.unitPricePaise);
       im.put("qty", i.qty);
+      im.put("personalization", cards.get(i.id));
       return im;
     }).toList());
     m.put("events", events);

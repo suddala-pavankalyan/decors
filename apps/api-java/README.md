@@ -22,6 +22,7 @@ These exist only in this backend; the NestJS API in `apps/api` has not been give
 | Coupons | Percentage (with a cap), flat amount or free shipping; minimum order, dates, total and per-customer limits. Admin > Coupons. |
 | Shipping | Fee, free-shipping threshold, shop pincode, packing days and blocked areas (Admin > Shipping); "Check delivery" on product pages; delivery window at checkout. |
 | GST invoices | A PDF invoice once an order ships (CGST + SGST or IGST, consecutive numbers per financial year, no tax if the shop has no GSTIN). Set the seller details and GST rates under Admin > Business & GST. |
+| Personalised cards | Wedding cards (any product the admin ticks "customers can personalise") take two names, the event date, a venue and an optional line, with a live preview; the details travel cart → order and the admin sees a print-ready preview on the order. Checkout refuses a personalised card without details or with a date in the past. |
 | Stock | Units are reserved at checkout and returned on cancellation; unpaid orders release their stock after 30 minutes (checked every 5 minutes, `ORDER_REAP_INTERVAL_MS`). Low-stock and sold-out labels, and cart limits. |
 
 Things to know:

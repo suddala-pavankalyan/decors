@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import type { Product } from '@/lib/api';
 import { maxFor, useStore } from '@/lib/store';
 import Icon from './Icon';
@@ -12,6 +13,10 @@ export default function AddToCartButton({
   const [added, setAdded] = useState(false);
   const inCart = useStore((s) => s.cart.find((l) => l.id === p.id)?.qty ?? 0);
   const soldOut = p.stock === 0;
+  // Cards with the customer's own names are added from the product page, where they type the details.
+  if (p.personalizable && !soldOut) {
+    return <Link href={`/products/${p.id}`} className={className} style={{ background: p.color }}>Personalise</Link>;
+  }
   const atMax = !soldOut && inCart >= maxFor(p);
   if (soldOut || atMax) {
     return (

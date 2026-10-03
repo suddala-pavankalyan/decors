@@ -37,7 +37,7 @@ public class AdminService {
 
   public record AdminImage(int id, String url, String alt) {}
   public record AdminProduct(
-      String id, String name, String category, int price, int stock, double rating, String description,
+      String id, String name, String category, int price, int stock, boolean personalizable, double rating, String description,
       String colorName, String colorHex, List<String> tags, List<AdminImage> images) {}
   public record AdminPage(long total, List<AdminProduct> items, boolean hasMore) {}
 
@@ -184,6 +184,7 @@ public class AdminService {
     p.category = category;
     p.price = in.price();
     p.stock = in.stock();
+    p.personalizable = Boolean.TRUE.equals(in.personalizable());
     p.rating = in.rating();
     p.description = in.description();
     p.color = color;
@@ -234,7 +235,7 @@ public class AdminService {
     for (Product r : rows) {
       // The entities expose public fields, which a lazy proxy does not fill in, so use the real instance.
       Color color = (Color) org.hibernate.Hibernate.unproxy(r.color);
-      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.stock, r.rating, r.description,
+      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.stock, r.personalizable, r.rating, r.description,
           color.name, color.hex, r.tags.stream().map(t -> t.name).sorted().toList(),
           imgs.getOrDefault(r.id, List.of())));
     }
