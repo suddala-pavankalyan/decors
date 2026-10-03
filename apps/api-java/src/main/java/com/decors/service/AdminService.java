@@ -32,10 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class AdminService {
   public static final int MAX_IMAGES = 8;
+  /** At or below this many units a product counts as low on stock. */
+  public static final int LOW_STOCK = 5;
 
   public record AdminImage(int id, String url, String alt) {}
   public record AdminProduct(
-      String id, String name, String category, int price, double rating, String description,
+      String id, String name, String category, int price, int stock, double rating, String description,
       String colorName, String colorHex, List<String> tags, List<AdminImage> images) {}
   public record AdminPage(long total, List<AdminProduct> items, boolean hasMore) {}
 
@@ -60,18 +62,23 @@ public class AdminService {
 
   /** One page of products, newest first, optionally filtered by name or category (done in the database). */
   @Transactional(readOnly = true)
-  public AdminPage list(String q, Integer limit, Integer offset) {
+  public AdminPage list(String q, String stock, Integer limit, Integer offset) {
     String text = q == null ? "" : q.trim();
     int take = limit == null ? 30 : limit;
     int skip = offset == null ? 0 : offset;
     Specification<Product> spec = (root, query, cb) -> {
-      if (text.isEmpty()) return cb.conjunction();
+      var stockFilter = switch (stock == null ? "" : stock) {
+        case "low" -> cb.lessThanOrEqualTo(root.<Integer>get("stock"), LOW_STOCK);
+        case "out" -> cb.equal(root.<Integer>get("stock"), 0);
+        default -> cb.conjunction();
+      };
+      if (text.isEmpty()) return stockFilter;
       String pattern = "%" + text.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
       List<Category> cats = Category.slugs().stream()
           .filter(s -> s.replace('-', ' ').contains(text.toLowerCase()))
           .map(s -> Category.fromSlug(s).orElseThrow()).toList();
       var byName = cb.like(cb.lower(root.get("name")), pattern, '\\');
-      return cats.isEmpty() ? byName : cb.or(byName, root.get("category").in(cats));
+      return cb.and(stockFilter, cats.isEmpty() ? byName : cb.or(byName, root.get("category").in(cats)));
     };
     var page = products.findAll(spec, new OffsetPageRequest(skip, take,
         Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("id"))));
@@ -110,6 +117,13 @@ public class AdminService {
     List<ProductImage> own = images.findByProductIdOrderByPositionAscIdAsc(id);
     jdbc.sql("delete from \"Product\" where id = :id").param("id", id).update();
     own.forEach(i -> storage.remove(i.url));
+  }
+
+  public AdminProduct setStock(String id, int stock) {
+    Product p = products.findById(id).orElseThrow(() -> ApiException.notFound("Product not found"));
+    p.stock = stock;
+    products.saveAndFlush(p);
+    return get(id);
   }
 
   public AdminProduct addImage(String productId, byte[] file, String alt) {
@@ -169,6 +183,7 @@ public class AdminService {
     p.name = in.name();
     p.category = category;
     p.price = in.price();
+    p.stock = in.stock();
     p.rating = in.rating();
     p.description = in.description();
     p.color = color;
@@ -219,7 +234,7 @@ public class AdminService {
     for (Product r : rows) {
       // The entities expose public fields, which a lazy proxy does not fill in, so use the real instance.
       Color color = (Color) org.hibernate.Hibernate.unproxy(r.color);
-      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.rating, r.description,
+      out.add(new AdminProduct(r.id, r.name, r.category.slug(), r.price, r.stock, r.rating, r.description,
           color.name, color.hex, r.tags.stream().map(t -> t.name).sorted().toList(),
           imgs.getOrDefault(r.id, List.of())));
     }

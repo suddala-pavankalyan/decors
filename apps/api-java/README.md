@@ -10,6 +10,26 @@ cookies, error messages, validation and rate limits — and uses the **same Post
   change, email verification, password reset), cart/wishlist, Razorpay checkout/verify/webhook/orders, the admin area
   with image uploads, and the `seed` / `make-admin` commands
 
+## Shop features (Java API only)
+
+These exist only in this backend; the NestJS API in `apps/api` has not been given them. The admin pages are at `/admin`.
+
+| Feature | What it does |
+| --- | --- |
+| Order tracking | Paid orders move packed → shipped (carrier and tracking number) → delivered; customers see a timeline and get emails when it ships and arrives. Admin > Orders. |
+| Cancellation and refunds | Customers (or admins) cancel until an order ships; paid orders are refunded in full through Razorpay, and a failed refund can be retried by an admin. |
+| Saved addresses | Up to 10 per customer with a default, on the profile page and as a picker at checkout. |
+| Coupons | Percentage (with a cap), flat amount or free shipping; minimum order, dates, total and per-customer limits. Admin > Coupons. |
+| Shipping | Fee, free-shipping threshold, shop pincode, packing days and blocked areas (Admin > Shipping); "Check delivery" on product pages; delivery window at checkout. |
+| GST invoices | A PDF invoice once an order ships (CGST + SGST or IGST, consecutive numbers per financial year, no tax if the shop has no GSTIN). Set the seller details and GST rates under Admin > Business & GST. |
+| Stock | Units are reserved at checkout and returned on cancellation; unpaid orders release their stock after 30 minutes (checked every 5 minutes, `ORDER_REAP_INTERVAL_MS`). Low-stock and sold-out labels, and cart limits. |
+
+Things to know:
+
+- Existing products start with a stock of 25 and a new shop starts with a Rs 49 shipping fee (free above Rs 999) and no GSTIN, so invoices carry no tax until you enter one. Change these in the admin area before taking real orders.
+- GST rates and HSN codes shipped here are starting values, not tax advice: check them with your accountant.
+- Invoices are issued when an order ships, and an order cannot be cancelled after that, so nothing issued ever needs a credit note.
+
 ## Run it (Windows, macOS, Linux)
 
 You need **JDK 21** (for example [Temurin 21](https://adoptium.net)) and the database from the repo's
@@ -86,8 +106,9 @@ history and the Prisma folder can go.
 .\mvnw.cmd test                          # unit tests (no database needed)
 ```
 
-`contract-tests/` holds a black-box HTTP suite that runs against **either** backend (150+ checks: catalogue, auth,
-email verification, password reset, cart/wishlist, admin + uploads, Razorpay checkout and webhooks, rate limits). It
+`contract-tests/` holds a black-box HTTP suite that runs against **either** backend (350 checks: catalogue, auth,
+email verification, password reset, cart/wishlist, addresses, admin + uploads, Razorpay checkout and webhooks,
+order tracking, cancellations and refunds, coupons, shipping, stock, GST invoices, rate limits). It
 plays the part of the mail server and, for the payment checks, of Razorpay:
 
 ```powershell
@@ -99,8 +120,10 @@ $env:BASE="http://localhost:4000"; $env:DATABASE_URL="postgresql://decors:decors
 
 For the Java API add `PAYMENTS=1` and start it with `RAZORPAY_BASE_URL=http://localhost:4545`,
 `RAZORPAY_KEY_ID=rzp_test_x`, `RAZORPAY_KEY_SECRET=test_key_secret`, `RAZORPAY_WEBHOOK_SECRET=test_webhook_secret`
-(the NestJS SDK always talks to Razorpay's real servers, so payments are only exercised on Java). The suite creates
-throw-away accounts, deletes them afterwards, and the rate-limit check at the end needs a minute between runs.
+(the NestJS SDK always talks to Razorpay's real servers, so payments are only exercised on Java). Also start the Java
+API with `ORDER_REAP_INTERVAL_MS=2000 ORDER_REAP_INITIAL_DELAY_MS=1000` so the abandoned-order check can be observed.
+The suite creates throw-away accounts, deletes them afterwards, waits out the checkout rate limit when it has to, and the
+rate-limit check at the end needs a minute between runs. The invoice checks read the PDFs with `pdftotext` when it is installed.
 
 ## Layout
 

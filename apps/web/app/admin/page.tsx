@@ -14,6 +14,7 @@ function ProductsTable() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState<'' | 'low' | 'out'>('');
   const [loadingMore, setLoadingMore] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -22,19 +23,19 @@ function ProductsTable() {
   useEffect(() => {
     const ctl = new AbortController();
     const t = setTimeout(() => {
-      listProducts({ q: filter, signal: ctl.signal })
+      listProducts({ q: filter, stock: stockFilter, signal: ctl.signal })
         .then((r) => { setItems(r.items); setTotal(r.total); setHasMore(r.hasMore); setError(''); })
         .catch((e) => { if (!ctl.signal.aborted) setError(e.message); });
     }, items === null ? 0 : 250);
     return () => { clearTimeout(t); ctl.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, stockFilter]);
 
   async function loadMore() {
     if (!items) return;
     setLoadingMore(true);
     try {
-      const r = await listProducts({ q: filter, offset: items.length });
+      const r = await listProducts({ q: filter, stock: stockFilter, offset: items.length });
       setItems((prev) => {
         const seen = new Set((prev ?? []).map((p) => p.id));
         return [...(prev ?? []), ...r.items.filter((p) => !seen.has(p.id))];
@@ -83,6 +84,14 @@ function ProductsTable() {
         onChange={(e) => setFilter(e.target.value)}
         className="mt-5 w-full max-w-sm rounded-full border border-slate-200 bg-white px-5 py-2 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-200"
       />
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Stock filter">
+        {([['', 'All'], ['low', 'Low stock (5 or fewer)'], ['out', 'Sold out']] as const).map(([v, label]) => (
+          <button key={v || 'all'} type="button" aria-pressed={stockFilter === v} onClick={() => setStockFilter(v)}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${stockFilter === v ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-slate-200 bg-white hover:border-fuchsia-300'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
 
       <ul className="mt-5 space-y-3">
@@ -95,6 +104,10 @@ function ProductsTable() {
               <p className="truncate font-semibold">{p.name}</p>
               <p className="text-sm capitalize text-slate-500">
                 {p.category.replace('-', ' ')} · {p.images.length} photo{p.images.length === 1 ? '' : 's'}
+                {' · '}
+                <span className={p.stock === 0 ? 'font-semibold text-rose-600' : p.stock <= 5 ? 'font-semibold text-amber-700' : ''}>
+                  {p.stock === 0 ? 'Sold out' : `${p.stock} in stock`}
+                </span>
               </p>
             </div>
             <p className="w-24 text-right font-bold tabular-nums">{rupees(p.price)}</p>

@@ -21,6 +21,7 @@ export default function ProductForm({
   const [name, setName] = useState(initial?.name ?? '');
   const [category, setCategory] = useState(initial?.category ?? 'wedding-cards');
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
+  const [stock, setStock] = useState(initial ? String(initial.stock) : '10');
   const [rating, setRating] = useState(initial ? String(initial.rating) : '0');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [colorName, setColorName] = useState(initial?.colorName ?? '');
@@ -55,7 +56,7 @@ export default function ProductForm({
     setBusy(true);
     try {
       await onSubmit({
-        name: name.trim(), category, price: Number(price), rating: Number(rating),
+        name: name.trim(), category, price: Number(price), stock: Math.round(Number(stock)), rating: Number(rating),
         description: description.trim(), colorName: colorName.trim(), colorHex, tags: allTags,
       });
       setTags(allTags);
@@ -74,7 +75,7 @@ export default function ProductForm({
         <input className={field} value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
       </label>
 
-      <div className="grid gap-5 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <div className="text-sm font-medium">Category
           <Dropdown ariaLabel="Category" placeholder="Category" value={category} onChange={setCategory} options={CATEGORIES}
             className="mt-1 [&>button]:py-2.5" />
@@ -82,6 +83,10 @@ export default function ProductForm({
         <label className="block text-sm font-medium">Price (₹)
           <input className={field} type="number" inputMode="numeric" min={1} max={1000000} step={1} required
             value={price} onChange={(e) => setPrice(e.target.value)} />
+        </label>
+        <label className="block text-sm font-medium">In stock (units)
+          <input className={field} type="number" inputMode="numeric" min={0} max={1000000} step={1} required
+            value={stock} onChange={(e) => setStock(e.target.value)} />
         </label>
         <label className="block text-sm font-medium">Rating (0–5)
           <input className={field} type="number" min={0} max={5} step={0.1} required

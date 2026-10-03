@@ -25,6 +25,7 @@ const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || 'test_webhook_secr
 const RUN = crypto.randomBytes(4).toString('hex');
 
 let passed = 0;
+let savedStock = [];
 const failures = [];
 const check = (name, ok, detail) => {
   if (ok) passed++;
@@ -141,7 +142,7 @@ async function main() {
   const total = r.json?.total;
   check('products shape', r.status === 200 && Array.isArray(r.json.items) && typeof total === 'number' && typeof r.json.hasMore === 'boolean', r.text.slice(0, 200));
   const first = r.json.items[0];
-  check('summary fields', first && ['id', 'name', 'category', 'price', 'color', 'colorName', 'tags', 'rating', 'description', 'image'].every((k) => k in first), first && Object.keys(first));
+  check('summary fields', first && ['id', 'name', 'category', 'price', 'color', 'colorName', 'tags', 'rating', 'description', 'image', 'stock'].every((k) => k in first), first && Object.keys(first));
   check('no createdAt leak', !('createdAt' in (first || {})));
   check('default page <= 24', r.json.items.length <= 24);
 
@@ -305,6 +306,9 @@ async function main() {
   section('account');
   const all = (await anon.get('/products?limit=60')).json.items;
   const [pa, pb, pc] = all;
+  // plenty of stock for the products the cart tests use; the real counts are put back at the end
+  savedStock = (await db.query('select id, stock from "Product" where id = any($1)', [[pa.id, pb.id, pc.id]])).rows;
+  await db.query('update "Product" set stock = 1000 where id = any($1)', [[pa.id, pb.id, pc.id]]);
   r = await anon.get('/account/state');
   check('state needs login', r.status === 401);
   r = await alice2.get('/account/state');
@@ -409,11 +413,13 @@ async function main() {
   r = await alice2.get('/admin/products?q=paint');
   check('admin search finds category by name', r.status === 200 && r.json.items.length > 0 && r.json.items.every((p) => p.category === 'paints' || /paint/i.test(p.name)), r.text.slice(0, 200));
 
-  const body = { name: `  Contract Card ${RUN} `, category: 'gift-cards', price: 77, description: ' A test card ', rating: 4.5, colorName: `Contract Teal ${RUN}`, colorHex: '#0d9488', tags: ['  Test ', 'test', 'Contract-Tag', ''] };
+  const body = { name: `  Contract Card ${RUN} `, category: 'gift-cards', price: 77, stock: 10, description: ' A test card ', rating: 4.5, colorName: `Contract Teal ${RUN}`, colorHex: '#0d9488', tags: ['  Test ', 'test', 'Contract-Tag', ''] };
   r = await alice2.post('/admin/products', { ...body, category: 'nope' });
   check('create invalid category → 400', r.status === 400, r.text);
   r = await alice2.post('/admin/products', { ...body, rating: 4.55 });
   check('create rating with 2 decimals → 400', r.status === 400, r.text);
+  r = await alice2.post('/admin/products', { ...body, stock: -1 });
+  check('create negative stock → 400', r.status === 400 && JSON.stringify(r.json.message).includes('stock must not be less than 0'), r.text);
   r = await alice2.post('/admin/products', { ...body, price: 0 });
   check('create price 0 → 400', r.status === 400);
   r = await alice2.post('/admin/products', { ...body, colorHex: 'teal' });
@@ -927,6 +933,100 @@ async function main() {
     await db.query(`delete from "Order" where "couponId" in (select id from "Coupon" where code like $1)`, [`%${U}`]);
     await db.query(`delete from "Coupon" where code like $1`, [`%${U}`]);
 
+    // ───── stock ─────
+    section('stock');
+    const mkStock = async (name, stock) => (await alice2.post('/admin/products', { name, category: 'gift-cards', price: 60, stock, description: 'stock test', rating: 4, colorName: `Stock Teal ${RUN}`, colorHex: '#0d9488', tags: [] })).json;
+    const sp = await mkStock(`Stock Test ${RUN}`, 3);
+    const stockOf = async (id) => (await anon.get(`/products/${id}`)).json.stock;
+    check('product detail shows stock', (await stockOf(sp.id)) === 3);
+    r = await anon.get('/products?q=' + encodeURIComponent(`Stock Test ${RUN}`));
+    check('listing shows stock', r.json.items[0].stock === 3, r.text.slice(0, 200));
+    r = await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 500 });
+    check('admin sets stock', r.status === 200 && r.json.stock === 500, r.text);
+    check('customers see at most 20', (await stockOf(sp.id)) === 20);
+    r = await alice2.put(`/admin/products/${sp.id}/stock`, { stock: -2 });
+    check('stock validated', r.status === 400, r.text);
+    r = await buyer.put(`/admin/products/${sp.id}/stock`, { stock: 5 });
+    check('customers cannot change stock', r.status === 403);
+    await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 3 });
+    r = await alice2.get(`/admin/products?stock=low&q=${encodeURIComponent(`Stock Test ${RUN}`)}`);
+    check('admin low-stock filter', r.status === 200 && r.json.items.some((p) => p.id === sp.id) && r.json.items[0].stock === 3, r.text.slice(0, 200));
+    r = await alice2.get(`/admin/products?stock=out&q=${encodeURIComponent(`Stock Test ${RUN}`)}`);
+    check('admin out-of-stock filter excludes it', r.json.total === 0, r.text.slice(0, 200));
+    r = await alice2.get('/admin/products?stock=weird');
+    check('bad stock filter → 400', r.status === 400);
+
+    await buyer.del('/account/cart');
+    r = await buyer.put(`/account/cart/${sp.id}`, { qty: 4 });
+    check('cannot put more in the cart than is in stock', r.status === 409 && r.json.message === `Only 3 of Stock Test ${RUN} are available`, r.text);
+    r = await buyer.put(`/account/cart/${sp.id}`, { qty: 3 });
+    check('up to the stock is fine', r.status === 204);
+    const out = await mkStock(`Sold Out ${RUN}`, 0);
+    r = await buyer.put(`/account/cart/${out.id}`, { qty: 1 });
+    check('sold-out product cannot be added', r.status === 409 && /is sold out/.test(r.json.message), r.text);
+    await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 2 });
+    r = await buyer.post('/account/merge', { cart: [{ productId: sp.id, qty: 5 }, { productId: out.id, qty: 1 }], wishlist: [] });
+    const merged = Object.fromEntries(r.json.cart.map((l) => [l.product.id, l.qty]));
+    check('merge caps to stock and skips sold-out items', merged[sp.id] === 2 && !(out.id in merged), merged);
+    await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 3 });
+    await buyer.del('/account/cart');
+    await buyer.put(`/account/cart/${sp.id}`, { qty: 3 });
+    r = await checkoutRaw(addr);
+    check('checkout reserves the stock', r.status === 200 && (await stockOf(sp.id)) === 0, r.text);
+    const held = r.json;
+    r = await buyer.put(`/account/cart/${sp.id}`, { qty: 1 });
+    check('now it is sold out', r.status === 409 && /sold out/.test(r.json.message), r.text);
+    await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 1 }); // someone corrected the count, but the cart wants 3
+    r = await checkoutRaw(addr);
+    check('checkout refuses when the cart wants more than is left', r.status === 409 && r.json.message === `Only 1 of Stock Test ${RUN} is available`, r.text);
+    check('a refused checkout keeps nothing reserved', (await stockOf(sp.id)) === 1);
+    r = await buyer.post(`/orders/${held.orderId}/cancel`, {});
+    check('cancelling gives the units back', r.status === 200 && (await stockOf(sp.id)) === 4, await stockOf(sp.id));
+    await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 3 });
+
+    // the abandoned-order clean-up
+    await buyer.del('/account/cart');
+    await buyer.put(`/account/cart/${sp.id}`, { qty: 2 });
+    const abandoned = (await checkoutRaw(addr)).json;
+    check('abandoned order is holding stock', (await stockOf(sp.id)) === 1);
+    const mailsMark = mails.length;
+    await db.query(`update "Order" set "createdAt" = now() - interval '2 hours' where id = $1`, [abandoned.orderId]);
+    let reaped = null;
+    for (let i = 0; i < 40 && !reaped; i++) {
+      await new Promise((x) => setTimeout(x, 500));
+      const o = (await buyer.get(`/orders/${abandoned.orderId}`)).json;
+      if (o.status === 'CANCELLED') reaped = o;
+    }
+    check('unpaid order is cancelled after the hold time', !!reaped && reaped.events.at(-1).note === 'Cancelled by the system: Payment was not completed in time' && reaped.refundStatus === null, reaped && reaped.events);
+    check('and its stock is released', (await stockOf(sp.id)) === 3);
+    check('no email is sent for it', !mails.slice(mailsMark).some((m) => /has been cancelled/.test(decodeQp(m)) && decodeQp(m).includes(abandoned.orderId)));
+    r = await buyer.post('/checkout/verify', { orderId: abandoned.orderId, razorpay_order_id: abandoned.razorpayOrderId, razorpay_payment_id: `pay_${RUN}_stale`, razorpay_signature: hmac(KEY_SECRET, `${abandoned.razorpayOrderId}|pay_${RUN}_stale`) });
+    check('a payment that still arrives is refunded', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED', r.text.slice(0, 200));
+    check('late payment does not take the stock again', (await stockOf(sp.id)) === 3);
+
+    // two people, one unit
+    const rival = new Browser();
+    const rivalEmail = newEmail('rival');
+    const mk0 = mails.length;
+    await rival.post('/auth/register', { name: 'Rival', email: rivalEmail, password: PASSWORD });
+    await db.query(`update "User" set "emailVerifiedAt" = now() where email = $1`, [rivalEmail]);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await alice2.put(`/admin/products/${sp.id}/stock`, { stock: 1 });
+      for (const who of [buyer, rival]) { await who.del('/account/cart'); await who.put(`/account/cart/${sp.id}`, { qty: 1 }); }
+      const [x, y] = await Promise.all([buyer.post('/checkout', addr), rival.post('/checkout', addr)]);
+      if (x.status === 429 || y.status === 429) { await new Promise((z) => setTimeout(z, 61_000)); continue; }
+      const codes = [x.status, y.status].sort();
+      check('only one of two simultaneous buyers gets the last unit', codes[0] === 200 && codes[1] === 409, [x.status, y.status, x.text, y.text]);
+      check('the loser is told it is sold out', [x, y].find((q) => q.status === 409).json.message.includes('sold out'));
+      check('stock is exactly zero, never negative', (await stockOf(sp.id)) === 0);
+      break;
+    }
+    for (const who of [buyer, rival]) await who.del('/account/cart');
+    await db.query(`delete from "Order" where id in (select "orderId" from "OrderItem" where "productId" in ($1, $2))`, [sp.id, out.id]);
+    await alice2.del(`/admin/products/${sp.id}`);
+    await alice2.del(`/admin/products/${out.id}`);
+    await db.query(`delete from "Color" where name = $1`, [`Stock Teal ${RUN}`]);
+
     // ───── invoices ─────
     section('invoices');
     const { execFileSync } = require('child_process');
@@ -1030,6 +1130,9 @@ async function main() {
 main()
   .catch((e) => { console.log('\nCRASH', e); failures.push('crash'); })
   .finally(async () => {
+    try {
+      for (const row of savedStock) await db.query('update "Product" set stock = $2 where id = $1', [row.id, row.stock]);
+    } catch (e) { console.log('could not restore stock:', e.message); }
     try {
       await db.query(`delete from "Order" where "userId" in (select id from "User" where email = any($1))`, [emails]);
       await db.query(`delete from "User" where email = any($1)`, [emails]);

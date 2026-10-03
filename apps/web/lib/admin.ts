@@ -2,7 +2,7 @@ import { API } from '@/lib/api';
 
 export interface AdminImage { id: number; url: string; alt: string }
 export interface AdminProduct {
-  id: string; name: string; category: string; price: number; rating: number; description: string;
+  id: string; name: string; category: string; price: number; stock: number; rating: number; description: string;
   colorName: string; colorHex: string; tags: string[]; images: AdminImage[];
 }
 export type ProductInput = Omit<AdminProduct, 'id' | 'images'>;
@@ -32,9 +32,10 @@ async function call<T>(path: string, method = 'GET', body?: unknown, form?: Form
 }
 
 export interface AdminPage { total: number; items: AdminProduct[]; hasMore: boolean }
-export const listProducts = (opts: { q?: string; offset?: number; signal?: AbortSignal } = {}) => {
+export const listProducts = (opts: { q?: string; stock?: 'low' | 'out' | ''; offset?: number; signal?: AbortSignal } = {}) => {
   const p = new URLSearchParams();
   if (opts.q?.trim()) p.set('q', opts.q.trim());
+  if (opts.stock) p.set('stock', opts.stock);
   if (opts.offset) p.set('offset', String(opts.offset));
   const qs = p.toString();
   return call<AdminPage>(qs ? `?${qs}` : '', 'GET', undefined, undefined, opts.signal);

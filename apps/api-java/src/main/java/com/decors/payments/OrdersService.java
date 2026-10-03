@@ -12,6 +12,7 @@ import com.decors.repo.Repositories.CartItemRepository;
 import com.decors.service.AddressService;
 import com.decors.service.CouponService;
 import com.decors.service.ShippingService;
+import com.decors.service.StockMessages;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
@@ -85,6 +86,16 @@ public class OrdersService {
       o.shipCity = addr.city();
       o.shipState = addr.state();
       o.shipPincode = addr.pincode();
+      // Reserve the stock first (in a fixed order, so two checkouts never wait on each other). If any item has run
+      // short the whole checkout is refused and nothing is kept.
+      for (CartItem c : lines.stream().sorted(java.util.Comparator.comparing(l -> l.product.id)).toList()) {
+        int reserved = jdbc.sql("update \"Product\" set stock = stock - :q where id = :id and stock >= :q")
+            .param("q", c.qty).param("id", c.product.id).update();
+        if (reserved == 0) {
+          int left = jdbc.sql("select stock from \"Product\" where id = :id").param("id", c.product.id).query(Integer.class).optional().orElse(0);
+          throw ApiException.conflict(StockMessages.shortage(c.product.name, left));
+        }
+      }
       List<OrderItem> items = new ArrayList<>();
       for (CartItem c : lines) {
         OrderItem i = new OrderItem();

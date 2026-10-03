@@ -51,6 +51,11 @@ public class CancellationService {
 
   /** {@code by} is "you" for the customer or "the shop" for an admin. */
   public void cancel(String orderId, String by, String reason) {
+    cancel(orderId, by, reason, true);
+  }
+
+  /** {@code notify} is false for the automatic clean-up of abandoned orders: nobody needs an email about those. */
+  public void cancel(String orderId, String by, String reason, boolean notify) {
     String cleanReason = reason == null || reason.isBlank() ? null : reason.trim();
     boolean paid = Boolean.TRUE.equals(tx.execute(s -> {
       ShopOrder o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
@@ -67,12 +72,15 @@ public class CancellationService {
           default -> "This order cannot be cancelled";
         });
       }
+      // The units held for this order go back on the shelf.
+      jdbc.sql("update \"Product\" p set stock = p.stock + i.qty from \"OrderItem\" i where i.\"orderId\" = :o and i.\"productId\" = p.id")
+          .param("o", orderId).update();
       events.record(orderId, OrderStatus.CANCELLED, "Cancelled by " + by + (cleanReason == null ? "" : ": " + cleanReason));
       return o.razorpayPaymentId != null;
     }));
     if (paid) attemptRefund(orderId);
     ShopOrder after = orders.findById(orderId).orElseThrow();
-    sendEmail(after, paid);
+    if (notify) sendEmail(after, paid);
   }
 
   /** Tries to refund a cancelled, paid order. Safe to call repeatedly: only one caller can claim the refund at a time. */

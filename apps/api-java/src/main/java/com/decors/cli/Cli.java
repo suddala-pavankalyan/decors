@@ -114,6 +114,7 @@ public class Cli implements ApplicationRunner {
         pr.name = p.name();
         pr.category = Category.fromSlug(p.category()).orElseThrow();
         pr.price = p.price();
+        pr.stock = 25;
         pr.rating = p.rating();
         pr.description = p.description();
         pr.color = color;

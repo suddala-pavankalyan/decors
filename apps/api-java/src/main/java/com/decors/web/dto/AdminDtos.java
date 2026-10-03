@@ -52,6 +52,9 @@ public final class AdminDtos {
       @Min(value = 1, message = "price must not be less than 1")
       @Max(value = 1_000_000, message = "price must not be greater than 1000000")
       Integer price,
+      @NotNull(message = "stock must be an integer number") @Min(value = 0, message = "stock must not be less than 0")
+      @Max(value = 1_000_000, message = "stock must not be greater than 1000000")
+      Integer stock,
       @JsonDeserialize(using = Trim.class) @NotNull(message = "description must be a string")
       @Size(min = 1, max = 2000, message = "description must be longer than or equal to 1 and shorter than or equal to 2000 characters")
       String description,
@@ -152,4 +155,8 @@ public final class AdminDtos {
       @NotNull(message = "shippingGstPercent must be an integer number") @Min(value = 0, message = "shippingGstPercent must not be less than 0")
       @Max(value = 28, message = "shippingGstPercent must not be greater than 28") Integer shippingGstPercent,
       @NotNull(message = "rates must be an object") java.util.Map<String, @jakarta.validation.Valid RateInput> rates) {}
+
+  public record StockInput(
+      @NotNull(message = "stock must be an integer number") @Min(value = 0, message = "stock must not be less than 0")
+      @Max(value = 1_000_000, message = "stock must not be greater than 1000000") Integer stock) {}
 }

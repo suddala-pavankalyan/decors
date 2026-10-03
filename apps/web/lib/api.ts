@@ -3,6 +3,8 @@ export interface Product {
   id: string; name: string; category: string; price: number;
   color: string; colorName: string; tags: string[]; rating: number; description: string;
   image: ProductImage | null;
+  /** Units left, at most 20 (above that the exact number is not shown). */
+  stock: number;
 }
 export interface ProductDetail extends Product { images: ProductImage[]; related: Product[] }
 export interface ProductPage { total: number; items: Product[]; hasMore: boolean }

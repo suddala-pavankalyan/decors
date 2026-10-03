@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Product } from '@/lib/api';
-import { useStore } from '@/lib/store';
+import { maxFor, useStore } from '@/lib/store';
 import Icon from './Icon';
 
 export default function AddToCartButton({
@@ -10,6 +10,16 @@ export default function AddToCartButton({
 }: { p: Product; label?: string; className?: string }) {
   const add = useStore((s) => s.addToCart);
   const [added, setAdded] = useState(false);
+  const inCart = useStore((s) => s.cart.find((l) => l.id === p.id)?.qty ?? 0);
+  const soldOut = p.stock === 0;
+  const atMax = !soldOut && inCart >= maxFor(p);
+  if (soldOut || atMax) {
+    return (
+      <button type="button" disabled className={`${className} cursor-not-allowed !bg-slate-200 !text-slate-500`}>
+        {soldOut ? 'Sold out' : 'All in cart'}
+      </button>
+    );
+  }
   return (
     <motion.button
       type="button"
