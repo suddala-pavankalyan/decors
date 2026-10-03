@@ -9,6 +9,7 @@ import com.decors.domain.OrderItem;
 import com.decors.domain.OrderStatus;
 import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
+import com.decors.service.AddressService;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
@@ -35,9 +36,11 @@ public class OrdersService {
   private final TransactionTemplate tx;
   private final OrderEvents events;
   private final CancellationService cancellation;
+  private final AddressService addresses;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses) {
+    this.addresses = addresses;
     this.events = events;
     this.cancellation = cancellation;
     this.users = users;
@@ -93,6 +96,13 @@ public class OrdersService {
       return o;
     });
 
+    if (Boolean.TRUE.equals(addr.saveAddress())) {
+      try {
+        addresses.saveFromCheckout(user.id, addr);
+      } catch (RuntimeException e) {
+        // Remembering the address is a convenience; never let it block a purchase.
+      }
+    }
     String rzpId = gateway.createOrder(order.amount, order.id);
     jdbc.sql("update \"Order\" set \"razorpayOrderId\" = :r where id = :id").param("r", rzpId).param("id", order.id).update();
     Map<String, Object> out = new LinkedHashMap<>();

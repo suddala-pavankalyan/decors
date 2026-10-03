@@ -345,6 +345,56 @@ async function main() {
   r = await alice2.get('/account/state');
   check('cart empty after clear', r.json.cart.length === 0);
 
+  // ───────────────────────── address book ─────────────────────────
+  section('address book');
+  const A1 = { name: ' Asha Rao ', phone: '9876543210', line1: ' 12 MG Road ', line2: '', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' };
+  r = await anon.get('/account/addresses');
+  check('addresses need login', r.status === 401);
+  r = await alice2.get('/account/addresses');
+  check('address book starts empty', r.status === 200 && Array.isArray(r.json) && r.json.length === 0, r.text);
+  r = await alice2.post('/account/addresses', { ...A1, phone: '123' });
+  check('address validated like checkout', r.status === 400 && JSON.stringify(r.json.message).includes('phone must be a 10-digit Indian mobile number'), r.text);
+  r = await alice2.post('/account/addresses', A1);
+  check('first address is saved, trimmed, and the default', r.status === 201 && r.json.name === 'Asha Rao' && r.json.line1 === '12 MG Road' && r.json.line2 === null && r.json.isDefault === true, r.text);
+  const ad1 = r.json;
+  r = await alice2.post('/account/addresses', { ...A1, name: 'Office', city: 'Pune', state: 'Maharashtra', pincode: '411001', line2: ' Floor 2 ' });
+  check('second address is not the default', r.status === 201 && r.json.isDefault === false && r.json.line2 === 'Floor 2', r.text);
+  const ad2 = r.json;
+  r = await alice2.post('/account/addresses', { ...A1, name: 'Parents', city: 'Mysuru', isDefault: true });
+  check('new address can take over as default', r.status === 201 && r.json.isDefault === true, r.text);
+  const ad3 = r.json;
+  r = await alice2.get('/account/addresses');
+  check('default listed first, only one default', r.json.length === 3 && r.json[0].id === ad3.id && r.json.filter((a) => a.isDefault).length === 1, r.json.map((a) => [a.name, a.isDefault]));
+  r = await alice2.put(`/account/addresses/${ad2.id}`, { ...A1, name: 'Work', city: 'Hyderabad', state: 'Telangana', pincode: '500001', isDefault: true });
+  check('update changes fields and can make it the default', r.status === 200 && r.json.name === 'Work' && r.json.city === 'Hyderabad' && r.json.isDefault === true, r.text);
+  r = await alice2.get('/account/addresses');
+  check('previous default is no longer default', r.json[0].id === ad2.id && r.json.filter((a) => a.isDefault).length === 1);
+  r = await alice2.post(`/account/addresses/${ad1.id}/default`);
+  check('set default returns the list', r.status === 200 && r.json[0].id === ad1.id && r.json[0].isDefault === true && r.json.filter((a) => a.isDefault).length === 1, r.text);
+  r = await alice2.del(`/account/addresses/${ad1.id}`);
+  check('delete 204', r.status === 204);
+  r = await alice2.get('/account/addresses');
+  check('deleting the default promotes the newest remaining', r.json.length === 2 && r.json[0].isDefault === true && r.json[0].id === ad3.id, r.json.map((a) => [a.name, a.isDefault]));
+  r = await alice2.del(`/account/addresses/${ad1.id}`);
+  check('delete twice → 404', r.status === 404 && r.json.message === 'Address not found');
+  const bob = new Browser();
+  await bob.post('/auth/register', { name: 'Bob', email: newEmail('bob'), password: PASSWORD });
+  r = await bob.get('/account/addresses');
+  check("another customer's book is separate", r.status === 200 && r.json.length === 0);
+  r = await bob.put(`/account/addresses/${ad3.id}`, A1);
+  check("cannot edit someone else's address", r.status === 404);
+  r = await bob.del(`/account/addresses/${ad3.id}`);
+  check("cannot delete someone else's address", r.status === 404);
+  r = await bob.post(`/account/addresses/${ad3.id}/default`);
+  check("cannot default someone else's address", r.status === 404);
+  for (let i = 0; i < 8; i++) r = await alice2.post('/account/addresses', { ...A1, name: `Extra ${i}` });
+  check('book holds up to 10', r.status === 201, r.text);
+  r = await alice2.post('/account/addresses', { ...A1, name: 'Eleventh' });
+  check('11th address refused', r.status === 400 && /up to 10 addresses/.test(r.json.message), r.text);
+  for (const a of (await alice2.get('/account/addresses')).json) await alice2.del(`/account/addresses/${a.id}`);
+  r = await alice2.get('/account/addresses');
+  check('book can be emptied', r.json.length === 0);
+
   // ───────────────────────── admin ─────────────────────────
   section('admin');
   r = await anon.get('/admin/products');
@@ -464,6 +514,8 @@ async function main() {
     const lastCall = rzpCalls[rzpCalls.length - 1];
     check('Razorpay got amount, currency, receipt and Basic auth', lastCall.body.amount === expected && lastCall.body.currency === 'INR' && lastCall.body.receipt === r.json.orderId && /^Basic /.test(lastCall.auth || ''), lastCall);
     const co = r.json;
+    r = await buyer.get('/account/addresses');
+    check('checkout without the flag does not save the address', r.json.length === 0, r.json);
     r = await buyer.get(`/orders/${co.orderId}`);
     check('order is pending with a snapshot of the lines', r.status === 200 && r.json.status === 'PENDING' && r.json.shipName === 'Asha' && r.json.shipLine1 === '12 MG Road' && r.json.shipLine2 === null && r.json.paidAt === null && r.json.items.length === 2 && r.json.items[0].unitPricePaise === pa.price * 100 && r.json.items[0].name === pa.name, r.text);
 
@@ -583,6 +635,13 @@ async function main() {
 
     // ───── cancellation and refunds ─────
     section('cancellation and refunds');
+    r = await buyer.post('/checkout', { ...addr, saveAddress: true });
+    check('checkout with saveAddress still works', r.status === 200, r.text);
+    r = await buyer.get('/account/addresses');
+    check('checkout saved the address as the default', r.json.length === 1 && r.json[0].name === 'Asha' && r.json[0].line1 === '12 MG Road' && r.json[0].line2 === null && r.json[0].isDefault === true, r.json);
+    r = await buyer.post('/checkout', { ...addr, saveAddress: true });
+    r = await buyer.get('/account/addresses');
+    check('the same address is not saved twice', r.json.length === 1, r.json);
     let payN = 0;
     const checkoutNew = async () => {
       await buyer.put(`/account/cart/${pa.id}`, { qty: 1 });

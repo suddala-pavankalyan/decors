@@ -1,16 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ResendVerification from '@/components/ResendVerification';
-import { startCheckout, verifyPayment, type Address } from '@/lib/account';
+import AddressFields, { EMPTY_ADDRESS } from '@/components/AddressFields';
+import { fetchAddresses, startCheckout, verifyPayment, type Address, type SavedAddress } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { rupees } from '@/lib/money';
 import { loadRazorpay } from '@/lib/razorpay';
 import { useHydrated, useStore } from '@/lib/store';
 
-const EMPTY: Address = { name: '', phone: '', line1: '', line2: '', city: '', state: '', pincode: '' };
-const input = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 outline-none focus:border-fuchsia-400';
+const sameAddress = (a: Address, b: Address) =>
+  (['name', 'phone', 'line1', 'line2', 'city', 'state', 'pincode'] as const).every((k) => a[k].trim() === b[k].trim());
+const oneLine = (a: Address) => [a.line1, a.line2, `${a.city}, ${a.state} ${a.pincode}`].filter(Boolean).join(', ');
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -18,10 +20,23 @@ export default function CheckoutPage() {
   const { user, ready } = useAuth();
   const cart = useStore((s) => s.cart);
   const resync = useStore((s) => s.resync);
-  const [addr, setAddr] = useState<Address>(EMPTY);
+  const [addr, setAddr] = useState<Address>(EMPTY_ADDRESS);
+  const [saved, setSaved] = useState<SavedAddress[]>([]);
+  const [picked, setPicked] = useState<string | null>(null); // id of the chosen saved address, null = typing a new one
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [paidOrder, setPaidOrder] = useState<string | null>(null);
+
+  // Offer the address book, starting with the default address already filled in.
+  useEffect(() => {
+    if (!user) return;
+    fetchAddresses().then((list) => {
+      setSaved(list);
+      const d = list.find((a) => a.isDefault) ?? list[0];
+      if (d) { setPicked(d.id); setAddr(d); }
+    }).catch(() => {});
+  }, [user]);
 
   if (!hydrated || !ready) return <main className="p-10 text-center">Loading…</main>;
   if (!user) {
@@ -42,14 +57,16 @@ export default function CheckoutPage() {
   }
 
   const subtotal = cart.reduce((n, l) => n + l.price * l.qty, 0);
-  const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement>) => setAddr({ ...addr, [k]: e.target.value });
+  const isNew = !saved.some((a) => sameAddress(a, addr));
+  const choose = (a: SavedAddress | null) => { setPicked(a?.id ?? null); setAddr(a ?? EMPTY_ADDRESS); };
+  const edit = (next: Address) => { setAddr(next); if (picked && !sameAddress(saved.find((a) => a.id === picked)!, next)) setPicked(null); };
 
   async function pay(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      const session = await startCheckout(addr);
+      const session = await startCheckout(addr, remember && isNew);
       await loadRazorpay();
       const Razorpay = window.Razorpay!;
       const rzp = new Razorpay({
@@ -107,31 +124,32 @@ export default function CheckoutPage() {
             <ResendVerification />
           </div>
         )}
-        <label className="block text-sm font-medium">Full name
-          <input className={input} value={addr.name} onChange={set('name')} required maxLength={80} autoComplete="name" />
-        </label>
-        <label className="block text-sm font-medium">Mobile number
-          <input className={input} value={addr.phone} onChange={set('phone')} required inputMode="numeric"
-            pattern="[6-9][0-9]{9}" title="10-digit Indian mobile number" autoComplete="tel-national" />
-        </label>
-        <label className="block text-sm font-medium">Address line 1
-          <input className={input} value={addr.line1} onChange={set('line1')} required maxLength={120} autoComplete="address-line1" />
-        </label>
-        <label className="block text-sm font-medium">Address line 2 (optional)
-          <input className={input} value={addr.line2} onChange={set('line2')} maxLength={120} autoComplete="address-line2" />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block text-sm font-medium">City
-            <input className={input} value={addr.city} onChange={set('city')} required maxLength={60} autoComplete="address-level2" />
+        {saved.length > 0 && (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Deliver to</legend>
+            {saved.map((a) => (
+              <label key={a.id} className={`flex cursor-pointer gap-3 rounded-2xl border p-3 text-sm ${picked === a.id ? 'border-fuchsia-400 bg-fuchsia-50/50' : 'border-slate-200 bg-white'}`}>
+                <input type="radio" name="saved-address" checked={picked === a.id} onChange={() => choose(a)} className="mt-1" />
+                <span>
+                  <span className="font-semibold">{a.name}</span> <span className="text-slate-500">· {a.phone}</span>
+                  {a.isDefault && <span className="ml-2 rounded-full bg-fuchsia-50 px-2 py-0.5 text-[11px] font-semibold text-fuchsia-700">Default</span>}
+                  <span className="block text-slate-600">{oneLine(a)}</span>
+                </span>
+              </label>
+            ))}
+            <label className={`flex cursor-pointer gap-3 rounded-2xl border p-3 text-sm ${picked === null && !saved.some((a) => sameAddress(a, addr)) ? 'border-fuchsia-400 bg-fuchsia-50/50' : 'border-slate-200 bg-white'}`}>
+              <input type="radio" name="saved-address" checked={picked === null} onChange={() => {}} onClick={() => choose(null)} className="mt-1" />
+              <span className="font-semibold">Use a different address</span>
+            </label>
+          </fieldset>
+        )}
+        <AddressFields value={addr} onChange={edit} />
+        {isNew && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Save this address for next time
           </label>
-          <label className="block text-sm font-medium">State
-            <input className={input} value={addr.state} onChange={set('state')} required maxLength={60} autoComplete="address-level1" />
-          </label>
-          <label className="block text-sm font-medium">Pincode
-            <input className={input} value={addr.pincode} onChange={set('pincode')} required inputMode="numeric"
-              pattern="[1-9][0-9]{5}" title="6-digit pincode" autoComplete="postal-code" />
-          </label>
-        </div>
+        )}
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
         <button type="submit" disabled={busy || !user.emailVerified}
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-3 font-semibold text-white disabled:opacity-60">

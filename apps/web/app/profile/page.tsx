@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import AddressBook from '@/components/AddressBook';
 import Icon, { type IconName } from '@/components/Icon';
 import ResendVerification from '@/components/ResendVerification';
 import { Avatar } from '@/components/UserMenu';
@@ -173,6 +174,7 @@ export default function ProfilePage() {
       </nav>
 
       <Card title="Personal details" icon="user"><NameForm /></Card>
+      <Card title="Saved addresses" icon="box"><AddressBook /></Card>
       <Card title="Password" icon="lock"><PasswordForm /></Card>
     </main>
   );

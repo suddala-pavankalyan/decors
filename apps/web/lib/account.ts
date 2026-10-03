@@ -53,12 +53,27 @@ async function json<T>(path: string, method = 'GET', body?: unknown): Promise<T>
     try { const j = await res.json(); msg = Array.isArray(j.message) ? j.message.join('. ') : j.message ?? msg; } catch {}
     throw new Error(msg);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
-export const startCheckout = (a: Address) => json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined });
+export const startCheckout = (a: Address, saveAddress = false) =>
+  json<CheckoutSession>('checkout', 'POST', { ...a, line2: a.line2 || undefined, saveAddress });
 export const verifyPayment = (orderId: string, r: PaymentResult) => json<Order>('checkout/verify', 'POST', { orderId, ...r });
 export const fetchOrders = () => json<Order[]>('orders');
 export const fetchOrder = (id: string) => json<Order>(`orders/${encodeURIComponent(id)}`);
 export const cancelOrder = (id: string, reason?: string) =>
   json<Order>(`orders/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason?.trim() || undefined });
+
+export interface SavedAddress extends Address { id: string; line2: string; isDefault: boolean }
+type Wire = Omit<SavedAddress, 'line2'> & { line2: string | null };
+const fromWire = (a: Wire): SavedAddress => ({ ...a, line2: a.line2 ?? '' });
+const body = (a: Address, isDefault?: boolean) => ({ ...a, line2: a.line2 || undefined, isDefault });
+
+export const fetchAddresses = async () => (await json<Wire[]>('account/addresses')).map(fromWire);
+export const createAddress = async (a: Address, isDefault = false) => fromWire(await json<Wire>('account/addresses', 'POST', body(a, isDefault)));
+export const updateAddress = async (id: string, a: Address, isDefault?: boolean) =>
+  fromWire(await json<Wire>(`account/addresses/${encodeURIComponent(id)}`, 'PUT', body(a, isDefault)));
+export const makeDefaultAddress = async (id: string) =>
+  (await json<Wire[]>(`account/addresses/${encodeURIComponent(id)}/default`, 'POST')).map(fromWire);
+export const deleteAddress = (id: string) => json<void>(`account/addresses/${encodeURIComponent(id)}`, 'DELETE');
