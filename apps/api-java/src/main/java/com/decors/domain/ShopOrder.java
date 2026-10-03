@@ -33,4 +33,9 @@ public class ShopOrder {
   public LocalDateTime paidAt;
   public String carrier;
   public String trackingNumber;
+  public String cancelReason;
+  /** null, PENDING, PROCESSING, PROCESSED or FAILED. */
+  public String refundStatus;
+  public String refundId;
+  public LocalDateTime refundedAt;
 }

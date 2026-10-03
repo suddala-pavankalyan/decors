@@ -3,6 +3,24 @@ import { STEPS, STEP_LABEL, dateTime } from '@/lib/orderStatus';
 
 /** Vertical timeline: finished steps are filled and show when and what happened; later steps are greyed out. */
 export default function OrderTimeline({ status, events }: { status: OrderStatus; events: OrderEvent[] }) {
+  if (status === 'CANCELLED') {
+    // Off the usual path: just tell what happened, in order.
+    return (
+      <ol aria-label="Order progress" className="space-y-4">
+        {events.map((e, i) => (
+          <li key={i} className="flex gap-3">
+            <span aria-hidden className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${e.status === 'CANCELLED' ? 'bg-rose-100 text-rose-600' : 'bg-spectrum text-white'}`}>
+              {e.status === 'CANCELLED' ? '×' : '✓'}
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{e.status === 'CANCELLED' ? 'Cancelled' : STEP_LABEL[e.status]}</p>
+              <p className="text-xs text-slate-500">{dateTime(e.createdAt)}{e.note && e.note !== STEP_LABEL[e.status] ? ` · ${e.note}` : ''}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    );
+  }
   const current = STEPS.indexOf(status);
   const byStatus = new Map(events.map((e) => [e.status, e]));
   return (

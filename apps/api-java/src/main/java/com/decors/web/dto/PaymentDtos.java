@@ -37,4 +37,9 @@ public final class PaymentDtos {
       @NotNull(message = "razorpay_order_id must be a string") String razorpay_order_id,
       @NotNull(message = "razorpay_payment_id must be a string") String razorpay_payment_id,
       @NotNull(message = "razorpay_signature must be a string") String razorpay_signature) {}
+
+  public record Cancel(
+      @JsonDeserialize(using = Trim.class)
+      @Size(max = 200, message = "reason must be shorter than or equal to 200 characters")
+      String reason) {}
 }

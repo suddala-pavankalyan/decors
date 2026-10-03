@@ -9,6 +9,7 @@ export interface AdminOrderPage { total: number; items: AdminOrderRow[]; hasMore
 export interface AdminOrder extends Order {
   customer?: { name: string; email: string };
   nextStatus: OrderStatus | null;
+  canCancel: boolean;
 }
 
 async function call<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -39,3 +40,6 @@ export const listOrders = (o: { status?: string; q?: string; offset?: number; si
 export const getOrder = (id: string) => call<AdminOrder>(`/${encodeURIComponent(id)}`);
 export const advanceOrder = (id: string, status: OrderStatus, shipment?: { carrier?: string; trackingNumber?: string }) =>
   call<AdminOrder>(`/${encodeURIComponent(id)}/status`, 'POST', { status, ...shipment });
+export const cancelOrder = (id: string, reason?: string) =>
+  call<AdminOrder>(`/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason?.trim() || undefined });
+export const retryRefund = (id: string) => call<AdminOrder>(`/${encodeURIComponent(id)}/refund`, 'POST');

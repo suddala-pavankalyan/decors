@@ -2,6 +2,7 @@ package com.decors.web;
 
 import com.decors.common.ApiException;
 import com.decors.domain.AppUser;
+import com.decors.payments.CancellationService;
 import com.decors.payments.OrdersService;
 import com.decors.payments.RazorpayGateway;
 import com.decors.security.Authenticated;
@@ -21,8 +22,10 @@ public class PaymentsController {
   private final OrdersService orders;
   private final RazorpayGateway gateway;
   private final ObjectMapper json;
+  private final CancellationService cancellation;
 
-  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json) {
+  public PaymentsController(OrdersService orders, RazorpayGateway gateway, ObjectMapper json, CancellationService cancellation) {
+    this.cancellation = cancellation;
     this.orders = orders;
     this.gateway = gateway;
     this.json = json;
@@ -41,6 +44,14 @@ public class PaymentsController {
   @GetMapping("/orders") @Authenticated
   public List<Map<String, Object>> list(@CurrentUser AppUser user) {
     return orders.list(user);
+  }
+
+  @PostMapping("/orders/{id}/cancel") @Authenticated @RateLimit(limit = 10)
+  public Map<String, Object> cancel(@CurrentUser AppUser user, @PathVariable String id,
+      @Valid @RequestBody(required = false) PaymentDtos.Cancel dto) {
+    orders.get(user, id); // 404 unless it is the caller's own order
+    cancellation.cancel(id, "you", dto == null ? null : dto.reason());
+    return orders.get(user, id);
   }
 
   @GetMapping("/orders/{id}") @Authenticated

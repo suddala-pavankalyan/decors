@@ -90,6 +90,7 @@ const tokenFrom = (mail, path) => (mail.match(new RegExp(`${path}\\?token=([A-Za
 
 // ───── fake Razorpay ─────
 let rzpOrders = 0;
+let rzpRefunds = 0;
 const rzpCalls = [];
 const rzpServer = http.createServer((req, res) => {
   let body = '';
@@ -100,6 +101,11 @@ const rzpServer = http.createServer((req, res) => {
       if (process.env.__RZP_FAIL) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: { description: 'Boom' } })); }
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ id: `order_${RUN}_${++rzpOrders}`, amount: JSON.parse(body).amount }));
+    }
+    if (/^\/v1\/payments\/[^/]+\/refund$/.test(req.url) && req.method === 'POST') {
+      if (process.env.__RZP_REFUND_FAIL) { res.writeHead(500, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: { description: 'Refund boom' } })); }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ id: `rfnd_${RUN}_${++rzpRefunds}` }));
     }
     res.writeHead(404); res.end();
   });
@@ -433,7 +439,8 @@ async function main() {
     const sinkN = mails.length;
     await buyer.post('/auth/register', { name: 'Buyer', email: buyerEmail, password: PASSWORD });
     const vm = await mailTo(buyerEmail, 'verify-email', sinkN);
-    await anon.post('/auth/verify-email', { token: tokenFrom(vm, 'verify-email') });
+    r = await anon.post('/auth/verify-email', { token: tokenFrom(vm, 'verify-email') });
+    check('buyer email verified', r.status === 200, [r.status, r.text, vm && vm.slice(0, 80)]);
 
     r = await buyer.post('/checkout', addr);
     check('checkout with empty cart → 400', r.status === 400 && r.json.message === 'Your cart is empty', r.text);
@@ -573,6 +580,108 @@ async function main() {
     check('delivered is final', r.status === 409 && /already delivered/.test(r.json.message), r.text);
     r = await alice2.get(`/admin/orders?status=DELIVERED&q=${co.orderId}`);
     check('delivered filter', r.json.total === 1);
+
+    // ───── cancellation and refunds ─────
+    section('cancellation and refunds');
+    let payN = 0;
+    const checkoutNew = async () => {
+      await buyer.put(`/account/cart/${pa.id}`, { qty: 1 });
+      let res = await buyer.post('/checkout', addr);
+      if (res.status === 429) {
+        // checkout is limited to 10 a minute per client; wait for the window to reset
+        await new Promise((r) => setTimeout(r, 61_000));
+        res = await buyer.post('/checkout', addr);
+      }
+      return res.json;
+    };
+    const makePaid = async () => {
+      const c = await checkoutNew();
+      const pid = `pay_${RUN}_c${++payN}`;
+      const v = await buyer.post('/checkout/verify', { orderId: c.orderId, razorpay_order_id: c.razorpayOrderId, razorpay_payment_id: pid, razorpay_signature: hmac(KEY_SECRET, `${c.razorpayOrderId}|${pid}`) });
+      return { ...c, paymentId: pid, status: v.json.status };
+    };
+    const refundCalls = () => rzpCalls.filter((c) => /\/refund$/.test(c.url));
+
+    // unpaid order
+    const unpaid = await checkoutNew();
+    r = await stranger.post(`/orders/${unpaid.orderId}/cancel`, {});
+    check("cannot cancel someone else's order", r.status === 404, r.text);
+    r = await anon.post(`/orders/${unpaid.orderId}/cancel`, {});
+    check('cancel needs login', r.status === 401);
+    r = await buyer.post(`/orders/${unpaid.orderId}/cancel`, { reason: 'x'.repeat(201) });
+    check('reason length validated', r.status === 400, r.text);
+    let mb = mails.length;
+    r = await buyer.post(`/orders/${unpaid.orderId}/cancel`, { reason: '  changed my mind ' });
+    check('cancel unpaid order', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === null && r.json.cancelReason === 'changed my mind' && r.json.events.at(-1).note === 'Cancelled by you: changed my mind', r.text.slice(0, 300));
+    const cancelMail = await mailTo(buyerEmail, 'has been cancelled', mb);
+    check('cancellation email says nothing was charged', !!cancelMail && /not charged/.test(cancelMail));
+    r = await buyer.post(`/orders/${unpaid.orderId}/cancel`);
+    check('cancel twice → 409', r.status === 409 && /already cancelled/.test(r.json.message), r.text);
+    const before = refundCalls().length;
+    r = await buyer.post('/checkout/verify', { orderId: unpaid.orderId, razorpay_order_id: unpaid.razorpayOrderId, razorpay_payment_id: `pay_${RUN}_late`, razorpay_signature: hmac(KEY_SECRET, `${unpaid.razorpayOrderId}|pay_${RUN}_late`) });
+    check('payment after cancellation stays cancelled and is refunded', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED' && refundCalls().length === before + 1 && refundCalls().at(-1).body.amount === unpaid.amount, r.text.slice(0, 300));
+    r = await alice2.post(`/admin/orders/${unpaid.orderId}/status`, { status: 'PACKED' });
+    check('cancelled orders cannot move on', r.status === 409 && /already cancelled/.test(r.json.message), r.text);
+
+    // paid order
+    const paid1 = await makePaid();
+    check('test order is paid', paid1.status === 'PAID');
+    mb = mails.length;
+    r = await buyer.post(`/orders/${paid1.orderId}/cancel`, {});
+    check('cancel paid order refunds it', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED' && r.json.refundedAt && refundCalls().at(-1).url === `/v1/payments/${paid1.paymentId}/refund` && refundCalls().at(-1).body.amount === paid1.amount && refundCalls().at(-1).body.notes.order === paid1.orderId, r.text.slice(0, 300));
+    check('timeline records cancel and refund', r.json.events.map((e) => e.note).join('|').includes('Cancelled by you') && /Refund of ₹\d+ issued/.test(r.json.events.at(-1).note), r.json.events);
+    check('cancellation email mentions the refund', /refunding \S+/.test((await mailTo(buyerEmail, 'has been cancelled', mb)) || ''));
+    raw = event('order.paid', paid1.razorpayOrderId, paid1.paymentId, paid1.amount);
+    r = await hook(raw, hmac(WEBHOOK_SECRET, raw));
+    const nRefunds = refundCalls().length;
+    r = await buyer.get(`/orders/${paid1.orderId}`);
+    check('webhook replay does not revive a cancelled order or refund twice', r.json.status === 'CANCELLED' && refundCalls().length === nRefunds, r.json.status);
+
+    // packed order can still be cancelled by the customer
+    const paid2 = await makePaid();
+    await alice2.post(`/admin/orders/${paid2.orderId}/status`, { status: 'PACKED' });
+    r = await alice2.get(`/admin/orders/${paid2.orderId}`);
+    check('admin detail says it can be cancelled', r.json.canCancel === true);
+    r = await buyer.post(`/orders/${paid2.orderId}/cancel`, {});
+    check('cancel a packed order', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED', r.text.slice(0, 200));
+
+    // shipped order cannot
+    const paid3 = await makePaid();
+    await alice2.post(`/admin/orders/${paid3.orderId}/status`, { status: 'PACKED' });
+    await alice2.post(`/admin/orders/${paid3.orderId}/status`, { status: 'SHIPPED' });
+    const nr = refundCalls().length;
+    r = await buyer.post(`/orders/${paid3.orderId}/cancel`, {});
+    check('shipped order cannot be cancelled', r.status === 409 && /already shipped/.test(r.json.message) && refundCalls().length === nr, r.text);
+    r = await alice2.get(`/admin/orders/${paid3.orderId}`);
+    check('admin detail: shipped cannot be cancelled', r.json.canCancel === false);
+    r = await alice2.get(`/admin/orders/${co.orderId}`);
+    check('admin detail: delivered cannot be cancelled', r.json.canCancel === false);
+
+    // refund failure, then retry
+    const paid4 = await makePaid();
+    process.env.__RZP_REFUND_FAIL = '1';
+    r = await buyer.post(`/orders/${paid4.orderId}/cancel`, {});
+    check('refund failure still cancels, marks refund FAILED', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'FAILED' && r.json.refundedAt === null, r.text.slice(0, 300));
+    r = await buyer.post(`/admin/orders/${paid4.orderId}/refund`);
+    check('customers cannot retry refunds', r.status === 403);
+    r = await alice2.post(`/admin/orders/${paid4.orderId}/refund`);
+    check('retry while Razorpay is still failing → 502', r.status === 502, r.text);
+    r = await alice2.get(`/admin/orders/${paid4.orderId}`);
+    check('refund still FAILED after a failed retry', r.json.refundStatus === 'FAILED');
+    delete process.env.__RZP_REFUND_FAIL;
+    r = await alice2.post(`/admin/orders/${paid4.orderId}/refund`);
+    check('retry succeeds', r.status === 200 && r.json.refundStatus === 'PROCESSED' && /^rfnd_/.test(r.json.refundId || '') || r.json?.refundStatus === 'PROCESSED', r.text.slice(0, 300));
+    r = await alice2.post(`/admin/orders/${paid4.orderId}/refund`);
+    check('refund twice → 409', r.status === 409, r.text);
+    r = await alice2.post(`/admin/orders/${pending.id}/refund`);
+    check('nothing to refund on an unpaid order → 409', r.status === 409 && /nothing to refund/.test(r.json.message), r.text);
+
+    // admin cancels
+    const paid5 = await makePaid();
+    r = await alice2.post(`/admin/orders/${paid5.orderId}/cancel`, { reason: 'out of stock' });
+    check('admin cancel + refund', r.status === 200 && r.json.status === 'CANCELLED' && r.json.refundStatus === 'PROCESSED' && r.json.events.some((e) => e.note === 'Cancelled by the shop: out of stock'), r.text.slice(0, 300));
+    r = await alice2.get('/admin/orders?status=CANCELLED&limit=100');
+    check('cancelled filter and counts', r.json.items.length >= 5 && r.json.counts.CANCELLED >= 5, r.json.counts);
   }
 
   // ───────────────────────── rate limits ─────────────────────────

@@ -29,9 +29,13 @@ public class AdminOrdersService {
   private final MailerService mailer;
   private final Background background;
   private final AppProperties props;
+  private final OrderEvents events;
+  private final CancellationService cancellation;
 
   public AdminOrdersService(JdbcClient jdbc, OrderRepository orders, OrdersService ordersService, TransactionTemplate tx,
-      MailerService mailer, Background background, AppProperties props) {
+      MailerService mailer, Background background, AppProperties props, OrderEvents events, CancellationService cancellation) {
+    this.events = events;
+    this.cancellation = cancellation;
     this.jdbc = jdbc;
     this.orders = orders;
     this.ordersService = ordersService;
@@ -88,8 +92,19 @@ public class AdminOrdersService {
     jdbc.sql("select name, email from \"User\" where id = :id").param("id", o.userId)
         .query((rs, n) -> Map.of("name", rs.getString("name"), "email", rs.getString("email")))
         .optional().ifPresent(c -> view.put("customer", c));
+    view.put("canCancel", o.status == OrderStatus.PENDING || o.status == OrderStatus.PAID || o.status == OrderStatus.PACKED);
     view.put("nextStatus", OrderFlow.next(o.status).map(Enum::name).orElse(null));
     return view;
+  }
+
+  public Map<String, Object> cancel(String id, String reason) {
+    cancellation.cancel(id, "the shop", reason);
+    return get(id);
+  }
+
+  public Map<String, Object> retryRefund(String id) {
+    cancellation.retryRefund(id);
+    return get(id);
   }
 
   /** Moves a paid order to its next step. Shipping can record the carrier and tracking number. */
@@ -119,7 +134,7 @@ public class AdminOrdersService {
         case SHIPPED -> "Shipped" + (c == null ? "" : " with " + c) + (t == null ? "" : " (tracking " + t + ")");
         default -> "Delivered";
       };
-      ordersService.recordEvent(id, target, note);
+      events.record(id, target, note);
       jdbc.sql("select name, email from \"User\" where id = :id").param("id", o.userId)
           .query((rs, n) -> new String[] {rs.getString("name"), rs.getString("email")}).optional()
           .ifPresent(r -> { customer[0] = r[0]; customer[1] = r[1]; });

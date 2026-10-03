@@ -24,7 +24,8 @@ export const deleteCart = () => req('cart', 'DELETE');
 export const putWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'PUT');
 export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'DELETE');
 
-export type OrderStatus = 'PENDING' | 'PAID' | 'PACKED' | 'SHIPPED' | 'DELIVERED';
+export type OrderStatus = 'PENDING' | 'PAID' | 'PACKED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type RefundStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 export interface OrderEvent { status: OrderStatus; note: string | null; createdAt: string }
 export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number }
 export interface Order {
@@ -33,6 +34,7 @@ export interface Order {
   shipName: string; shipPhone: string; shipLine1: string; shipLine2: string | null;
   shipCity: string; shipState: string; shipPincode: string;
   carrier: string | null; trackingNumber: string | null;
+  cancelReason: string | null; refundStatus: RefundStatus | null; refundedAt: string | null;
   items: OrderItem[];
   events: OrderEvent[];
 }
@@ -58,3 +60,5 @@ export const startCheckout = (a: Address) => json<CheckoutSession>('checkout', '
 export const verifyPayment = (orderId: string, r: PaymentResult) => json<Order>('checkout/verify', 'POST', { orderId, ...r });
 export const fetchOrders = () => json<Order[]>('orders');
 export const fetchOrder = (id: string) => json<Order>(`orders/${encodeURIComponent(id)}`);
+export const cancelOrder = (id: string, reason?: string) =>
+  json<Order>(`orders/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason?.trim() || undefined });

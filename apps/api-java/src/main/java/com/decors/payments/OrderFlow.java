@@ -12,7 +12,7 @@ public final class OrderFlow {
       case PAID -> Optional.of(OrderStatus.PACKED);
       case PACKED -> Optional.of(OrderStatus.SHIPPED);
       case SHIPPED -> Optional.of(OrderStatus.DELIVERED);
-      case PENDING, DELIVERED -> Optional.empty();
+      case PENDING, DELIVERED, CANCELLED -> Optional.empty();
     };
   }
 }

@@ -6,9 +6,9 @@ import AdminGate from '@/components/admin/AdminGate';
 import AdminTabs from '@/components/admin/AdminTabs';
 import Icon from '@/components/Icon';
 import OrderTimeline from '@/components/OrderTimeline';
-import { advanceOrder, getOrder, type AdminOrder } from '@/lib/adminOrders';
+import { advanceOrder, cancelOrder, getOrder, retryRefund, type AdminOrder } from '@/lib/adminOrders';
 import { fromPaise } from '@/lib/money';
-import { STATUS_LABEL, STATUS_TONE } from '@/lib/orderStatus';
+import { REFUND_LABEL, STATUS_LABEL, STATUS_TONE } from '@/lib/orderStatus';
 
 const ACTION: Record<string, string> = { PACKED: 'Mark as packed', SHIPPED: 'Mark as shipped', DELIVERED: 'Mark as delivered' };
 
@@ -19,6 +19,8 @@ function Detail() {
   const [busy, setBusy] = useState(false);
   const [carrier, setCarrier] = useState('');
   const [tracking, setTracking] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [reason, setReason] = useState('');
 
   useEffect(() => { getOrder(id).then(setOrder).catch((e) => setError(e.message)); }, [id]);
 
@@ -32,6 +34,20 @@ function Detail() {
       setTracking('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update the order');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function run(action: () => Promise<AdminOrder>) {
+    setBusy(true);
+    setError('');
+    try {
+      setOrder(await action());
+      setCancelling(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update the order');
+      getOrder(id).then(setOrder).catch(() => {});
     } finally {
       setBusy(false);
     }
@@ -79,7 +95,34 @@ function Detail() {
             {order.nextStatus !== 'PACKED' && <p className="mt-2 text-xs text-slate-500">The customer gets an email.</p>}
           </div>
         ) : (
-          <p className="mt-4 border-t pt-3 text-sm text-slate-500">{order.status === 'PENDING' ? 'Waiting for the customer to pay.' : 'This order is complete.'}</p>
+          <p className="mt-4 border-t pt-3 text-sm text-slate-500">{order.status === 'PENDING' ? 'Waiting for the customer to pay.' : order.status === 'CANCELLED' ? 'This order was cancelled.' : 'This order is complete.'}</p>
+        )}
+        {order.refundStatus && (
+          <div className={`mt-4 flex flex-wrap items-center gap-3 rounded-xl px-3 py-2 text-sm ${order.refundStatus === 'FAILED' ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-slate-700'}`}>
+            <span>{REFUND_LABEL[order.refundStatus]}{order.refundStatus === 'FAILED' ? ' (Razorpay did not accept it)' : ''}</span>
+            {(order.refundStatus === 'FAILED' || order.refundStatus === 'PENDING') && (
+              <button type="button" disabled={busy} onClick={() => run(() => retryRefund(order.id))}
+                className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60">Retry refund</button>
+            )}
+          </div>
+        )}
+        {order.canCancel && (
+          <div className="mt-4 border-t pt-4">
+            {cancelling ? (
+              <div className="space-y-2">
+                <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Reason (optional, shown to the customer)" aria-label="Cancellation reason"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100" />
+                <div className="flex gap-2">
+                  <button type="button" disabled={busy} onClick={() => run(() => cancelOrder(order.id, reason))} className="rounded-full bg-rose-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                    {busy ? 'Cancelling…' : order.status === 'PENDING' ? 'Cancel order' : 'Cancel and refund'}
+                  </button>
+                  <button type="button" onClick={() => setCancelling(false)} className="rounded-full border border-slate-200 px-5 py-2 text-sm">Keep order</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setCancelling(true)} className="text-sm font-medium text-rose-600 hover:underline">Cancel this order…</button>
+            )}
+          </div>
         )}
         {(order.carrier || order.trackingNumber) && (
           <p className="mt-3 text-sm text-slate-600">{order.carrier} {order.trackingNumber && <span className="font-mono">· {order.trackingNumber}</span>}</p>

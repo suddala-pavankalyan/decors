@@ -33,9 +33,13 @@ public class OrdersService {
   private final RazorpayGateway gateway;
   private final JdbcClient jdbc;
   private final TransactionTemplate tx;
+  private final OrderEvents events;
+  private final CancellationService cancellation;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation) {
+    this.events = events;
+    this.cancellation = cancellation;
     this.users = users;
     this.cart = cart;
     this.orders = orders;
@@ -85,7 +89,7 @@ public class OrdersService {
       o.amount = Math.toIntExact(total);
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
-      recordEvent(o.id, OrderStatus.PENDING, "Order placed");
+      events.record(o.id, OrderStatus.PENDING, "Order placed");
       return o;
     });
 
@@ -118,23 +122,36 @@ public class OrdersService {
    * asked Razorpay to collect. The conditional update means only one of two concurrent callers wins.
    */
   public void markPaid(String razorpayOrderId, String paymentId, long paidAmount) {
-    tx.executeWithoutResult(s -> {
+    boolean refundLatePayment = Boolean.TRUE.equals(tx.execute(s -> {
       ShopOrder order = orders.findByRazorpayOrderId(razorpayOrderId).orElse(null);
-      if (order == null || order.amount != paidAmount) return;
+      if (order == null || order.amount != paidAmount) return false;
       int changed = jdbc.sql("""
               update "Order" set status = 'PAID', "razorpayPaymentId" = :pay, "paidAt" = :t
               where id = :id and status = 'PENDING'
               """)
           .param("pay", paymentId).param("t", Time.now()).param("id", order.id).update();
-      if (changed == 0) return;
-      recordEvent(order.id, OrderStatus.PAID, "Payment received");
+      if (changed == 0) {
+        // Paid after the customer had already cancelled: keep it cancelled and give the money back.
+        int late = jdbc.sql("""
+                update "Order" set "razorpayPaymentId" = :pay, "paidAt" = :t, "refundStatus" = 'PENDING'
+                where id = :id and status = 'CANCELLED' and "razorpayPaymentId" is null
+                """)
+            .param("pay", paymentId).param("t", Time.now()).param("id", order.id).update();
+        if (late == 1) events.record(order.id, OrderStatus.CANCELLED, "Payment arrived after cancellation; refunding it");
+        return late == 1;
+      }
+      events.record(order.id, OrderStatus.PAID, "Payment received");
       // Remove what was bought from the cart; anything added since checkout started stays.
       jdbc.sql("""
               delete from "CartItem" where "userId" = :u
                 and "productId" in (select "productId" from "OrderItem" where "orderId" = :o and "productId" is not null)
               """)
           .param("u", order.userId).param("o", order.id).update();
-    });
+      return false;
+    }));
+    if (refundLatePayment) {
+      orders.findByRazorpayOrderId(razorpayOrderId).ifPresent(o -> cancellation.attemptRefund(o.id));
+    }
   }
 
   public List<Map<String, Object>> list(AppUser user) {
@@ -144,14 +161,6 @@ public class OrdersService {
   public Map<String, Object> get(AppUser user, String id) {
     ShopOrder o = orders.findByIdAndUserId(id, user.id).orElseThrow(() -> ApiException.notFound("Order not found"));
     return views(List.of(o)).get(0);
-  }
-
-  /** Adds a line to an order's timeline. Call inside the transaction that changes the status. */
-  public void recordEvent(String orderId, OrderStatus status, String note) {
-    jdbc.sql("""
-            insert into "OrderEvent" ("orderId", status, note, "createdAt") values (:o, cast(:s as "OrderStatus"), :n, :t)
-            """)
-        .param("o", orderId).param("s", status.name()).param("n", note).param("t", Time.now()).update();
   }
 
   /** The JSON for orders: lines and timeline are loaded for all of them in two queries. */
@@ -198,6 +207,9 @@ public class OrdersService {
     m.put("paidAt", iso(o.paidAt));
     m.put("carrier", o.carrier);
     m.put("trackingNumber", o.trackingNumber);
+    m.put("cancelReason", o.cancelReason);
+    m.put("refundStatus", o.refundStatus);
+    m.put("refundedAt", iso(o.refundedAt));
     m.put("items", items.stream().map(i -> {
       Map<String, Object> im = new LinkedHashMap<>();
       im.put("id", i.id);

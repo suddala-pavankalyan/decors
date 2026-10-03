@@ -70,4 +70,14 @@ public final class Templates {
         "Hi " + name + ",\n\n" + sentence.substring(0, 1).toUpperCase() + sentence.substring(1) + "\n\nSee the details: " + link + "\n",
         layout(headline, "<p style=\"margin:0;line-height:1.6\">Hi " + esc(name) + ", " + esc(sentence) + "</p>", "View my order", link));
   }
+
+  /** Sent when an order is cancelled. {@code refund} is the refund amount text (such as "₹90"), or null if nothing was paid. */
+  public static MailMessage orderCancelled(String to, String name, String orderId, String refund, String link) {
+    String line = refund == null
+        ? "Your order " + orderId + " has been cancelled. You were not charged."
+        : "Your order " + orderId + " has been cancelled. We are refunding " + refund + " to your original payment method; it usually shows up within 5-7 working days.";
+    return new MailMessage(to, "Your Decors order was cancelled",
+        "Hi " + name + ",\n\n" + line + "\n\nSee the details: " + link + "\n",
+        layout("Your order was cancelled", "<p style=\"margin:0;line-height:1.6\">Hi " + esc(name) + ", " + esc(line.substring(0, 1).toLowerCase() + line.substring(1)) + "</p>", "View my order", link));
+  }
 }

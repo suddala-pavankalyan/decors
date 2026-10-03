@@ -36,4 +36,14 @@ public class AdminOrdersController {
   public Map<String, Object> advance(@PathVariable String id, @Valid @RequestBody AdminDtos.OrderStep dto) {
     return service.advance(id, dto.status(), dto.carrier(), dto.trackingNumber());
   }
+
+  @PostMapping("/{id}/cancel")
+  public Map<String, Object> cancel(@PathVariable String id, @Valid @RequestBody(required = false) com.decors.web.dto.PaymentDtos.Cancel dto) {
+    return service.cancel(id, dto == null ? null : dto.reason());
+  }
+
+  @PostMapping("/{id}/refund")
+  public Map<String, Object> retryRefund(@PathVariable String id) {
+    return service.retryRefund(id);
+  }
 }

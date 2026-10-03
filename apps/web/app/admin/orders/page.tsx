@@ -60,7 +60,7 @@ function OrdersTable() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {chip('', 'All', Object.values(counts).reduce((a, b) => a + b, 0))}
-        {STEPS.map((s) => chip(s, STATUS_LABEL[s], counts[s] ?? 0))}
+        {[...STEPS, 'CANCELLED' as const].map((s) => chip(s, STATUS_LABEL[s], counts[s] ?? 0))}
       </div>
       <input type="search" aria-label="Search orders" placeholder="Search by order id, customer, email or tracking number…" value={q}
         onChange={(e) => setQ(e.target.value)}
