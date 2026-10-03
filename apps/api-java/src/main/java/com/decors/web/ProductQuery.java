@@ -15,7 +15,9 @@ public class ProductQuery {
   public String tags;
   @Min(value = 0, message = "minPrice must not be less than 0") public Double minPrice;
   @Min(value = 0, message = "maxPrice must not be less than 0") public Double maxPrice;
-  @Pattern(regexp = "price-asc|price-desc|rating", message = "sort must be one of the following values: price-asc, price-desc, rating")
+  @Min(value = 0, message = "minRating must not be less than 0") @Max(value = 5, message = "minRating must not be greater than 5") public Double minRating;
+  public Boolean inStock;
+  @Pattern(regexp = "price-asc|price-desc|rating|newest|relevance", message = "sort must be one of the following values: price-asc, price-desc, rating, newest, relevance")
   public String sort;
   /** Page size (default 24, at most 60) and how many results to skip. */
   @Min(value = 1, message = "limit must not be less than 1") @Max(value = 60, message = "limit must not be greater than 60")
@@ -30,6 +32,8 @@ public class ProductQuery {
   public void setTags(String v) { tags = v; }
   public void setMinPrice(Double v) { minPrice = v; }
   public void setMaxPrice(Double v) { maxPrice = v; }
+  public void setMinRating(Double v) { minRating = v; }
+  public void setInStock(Boolean v) { inStock = v; }
   public void setSort(String v) { sort = v; }
   public void setLimit(Integer v) { limit = v; }
   public void setOffset(Integer v) { offset = v; }
@@ -39,6 +43,6 @@ public class ProductQuery {
   }
 
   public Filters toFilters() {
-    return new Filters(q, csv(categories), csv(colors), csv(tags), minPrice, maxPrice, sort, limit, offset);
+    return new Filters(q, csv(categories), csv(colors), csv(tags), minPrice, maxPrice, minRating, inStock, sort, limit, offset);
   }
 }

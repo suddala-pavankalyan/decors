@@ -46,7 +46,7 @@ export default function SearchBox({
     if (!open || q.length < 2) { setMatches(null); return; }
     const ctl = new AbortController();
     const t = setTimeout(() => {
-      fetchProducts({ q, categories: [], colors: [], tags: [], maxPrice: 0, sort: 'rating' }, { limit: 5, signal: ctl.signal })
+      fetchProducts({ q, categories: [], colors: [], tags: [], maxPrice: 0, sort: '', minRating: 0, inStock: false }, { limit: 5, signal: ctl.signal })
         .then((r) => setMatches(r.items))
         .catch(() => { if (!ctl.signal.aborted) setMatches(null); });
     }, 200);

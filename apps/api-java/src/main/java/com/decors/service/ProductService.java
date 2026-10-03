@@ -33,7 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductService {
   public static final int DEFAULT_PAGE_SIZE = 24;
 
-  public record ProductPage(long total, List<ProductSummary> items, boolean hasMore) {}
+  /** {@code correctedQuery} is set when nothing matched as typed and a spelling fix found results. */
+  public record ProductPage(long total, List<ProductSummary> items, boolean hasMore, String correctedQuery) {}
   public record NamedColor(String name, String hex) {}
   public record Facets(List<String> categories, List<NamedColor> colors, List<String> tags, int maxPrice) {}
   public record Hall(String category, long count, List<String> colors) {}
@@ -48,7 +49,7 @@ public class ProductService {
 
   public record Filters(
       String q, List<String> categories, List<String> colors, List<String> tags,
-      Double minPrice, Double maxPrice, String sort, Integer limit, Integer offset) {}
+      Double minPrice, Double maxPrice, Double minRating, Boolean inStock, String sort, Integer limit, Integer offset) {}
 
   private final ProductRepository products;
   private final ColorRepository colors;
@@ -70,38 +71,80 @@ public class ProductService {
   }
 
   public ProductPage search(Filters f) {
+    List<String> tokens = SearchText.tokens(f.q());
+    ProductPage page = run(f, tokens, null);
+    if (page.total() > 0 || tokens.isEmpty()) return page;
+    // Nothing matched as typed: try fixing typos against the words the catalogue actually uses.
+    List<String> fixed = SearchText.correct(tokens, vocabulary());
+    if (fixed.equals(tokens)) return page;
+    ProductPage retry = run(f, fixed, String.join(" ", fixed));
+    return retry.total() > 0 ? retry : page;
+  }
+
+  private ProductPage run(Filters f, List<String> tokens, String corrected) {
     int limit = f.limit() == null ? DEFAULT_PAGE_SIZE : f.limit();
     int offset = f.offset() == null ? 0 : f.offset();
+    boolean relevance = !tokens.isEmpty() && (f.sort() == null || f.sort().isEmpty() || f.sort().equals("relevance"));
     // `id` breaks ties, so pages never repeat or skip a product when many share a price or rating.
-    Sort sort = switch (f.sort() == null ? "" : f.sort()) {
+    Sort sort = relevance ? Sort.unsorted() : switch (f.sort() == null ? "" : f.sort()) {
       case "price-asc" -> Sort.by(Sort.Order.asc("price"), Sort.Order.asc("id"));
       case "price-desc" -> Sort.by(Sort.Order.desc("price"), Sort.Order.asc("id"));
       case "rating" -> Sort.by(Sort.Order.desc("rating"), Sort.Order.asc("id"));
+      case "newest" -> Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("id"));
       default -> Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id"));
     };
-    var page = products.findAll(spec(f), new OffsetPageRequest(offset, limit, sort));
+    var page = products.findAll(spec(f, tokens, relevance), new OffsetPageRequest(offset, limit, sort));
     return new ProductPage(page.getTotalElements(), views.summaries(page.getContent()),
-        (long) offset + page.getNumberOfElements() < page.getTotalElements());
+        (long) offset + page.getNumberOfElements() < page.getTotalElements(), corrected);
   }
 
-  private static Specification<Product> spec(Filters f) {
+  /** Every word customers could type: product names, tags, colours and category names. */
+  private List<String> vocabulary() {
+    List<String> out = new ArrayList<>(jdbc.sql("""
+        select name from "Product" union all select name from "Tag" union all select name from "Color"
+        """).query(String.class).list());
+    for (String slug : Category.slugs()) out.add(slug.replace('-', ' '));
+    return SearchText.words(out);
+  }
+
+  private static String like(String token) {
+    return "%" + token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+  }
+
+  private static Specification<Product> spec(Filters f, List<String> tokens, boolean relevance) {
     return (root, query, cb) -> {
+      boolean fetching = query != null && query.getResultType() != Long.class && query.getResultType() != long.class;
       // Load the colour in the same query, but not in the count query (a fetch join is invalid there).
-      if (query != null && query.getResultType() != Long.class && query.getResultType() != long.class) {
-        root.fetch("color");
-      }
+      if (fetching) root.fetch("color");
       List<Predicate> all = new ArrayList<>();
-      String text = f.q() == null ? "" : f.q().trim();
-      if (!text.isEmpty()) {
-        String pattern = "%" + text.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+      // Every word must match somewhere: name, description, a tag, the colour or the category.
+      for (String token : tokens) {
+        String pattern = like(token);
         Subquery<Integer> tagMatch = query.subquery(Integer.class);
         Root<Product> outer = tagMatch.correlate(root);
         var tag = outer.join("tags");
         tagMatch.select(cb.literal(1)).where(cb.like(cb.lower(tag.get("name")), pattern, '\\'));
-        all.add(cb.or(
+        List<Category> cats = Arrays.stream(Category.values()).filter(c -> c.slug().contains(token)).toList();
+        List<Predicate> any = new ArrayList<>(List.of(
             cb.like(cb.lower(root.get("name")), pattern, '\\'),
             cb.like(cb.lower(root.get("description")), pattern, '\\'),
+            cb.like(cb.lower(root.get("color").get("name")), pattern, '\\'),
             cb.exists(tagMatch)));
+        if (!cats.isEmpty()) any.add(root.get("category").in(cats));
+        all.add(cb.or(any.toArray(Predicate[]::new)));
+      }
+      if (relevance && fetching) {
+        // Name matches first (word start beats mid-word), then the better-rated piece.
+        Expression<Integer> score = cb.literal(0);
+        for (String token : tokens) {
+          var name = cb.lower(root.<String>get("name"));
+          score = cb.sum(score, cb.<Integer>selectCase()
+              .when(cb.like(name, token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%", '\\'), 4)
+              .when(cb.like(name, "% " + like(token).substring(1), '\\'), 3)
+              .when(cb.like(name, like(token), '\\'), 2)
+              .otherwise(0));
+        }
+        query.orderBy(cb.desc(score), cb.desc(root.get("rating")), cb.asc(root.get("id")));
       }
       if (f.categories() != null && !f.categories().isEmpty()) {
         List<Category> cats = f.categories().stream().map(Category::fromSlug).flatMap(java.util.Optional::stream).toList();
@@ -121,6 +164,8 @@ public class ProductService {
       Expression<Integer> price = root.get("price");
       if (f.minPrice() != null) all.add(cb.ge(price, f.minPrice()));
       if (f.maxPrice() != null) all.add(cb.le(price, f.maxPrice()));
+      if (f.minRating() != null && f.minRating() > 0) all.add(cb.ge(root.<Double>get("rating"), f.minRating()));
+      if (Boolean.TRUE.equals(f.inStock())) all.add(cb.greaterThan(root.<Integer>get("stock"), 0));
       return cb.and(all.toArray(Predicate[]::new));
     };
   }
