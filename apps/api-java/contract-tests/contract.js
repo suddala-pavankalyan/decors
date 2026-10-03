@@ -484,6 +484,8 @@ async function main() {
   if (PAYMENTS) {
     section('payments');
     const addr = { name: ' Asha ', phone: '9876543210', line1: ' 12 MG Road ', line2: '', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' };
+    r = await alice2.put('/admin/shipping', { baseFeePaise: 0, freeAbovePaise: null, originPincode: '560001', handlingDays: 1, blockedPrefixes: [] });
+    check('shipping switched to free for the order tests', r.status === 200 && r.json.baseFeePaise === 0, r.text);
     const buyer = new Browser();
     const buyerEmail = newEmail('buyer');
     const sinkN = mails.length;
@@ -847,6 +849,81 @@ async function main() {
     await db.query(`update "Order" set "createdAt" = now() - interval '2 hours' where "couponId" = $1 and status = 'PENDING'`, [single.id]);
     r = await quote(single.code);
     check('an abandoned unpaid order releases the coupon after 30 minutes', r.status === 200, r.text);
+    await db.query(`delete from "Order" where "couponId" in (select id from "Coupon" where code like $1)`, [`%${U}`]);
+    await db.query(`delete from "Coupon" where code like $1`, [`%${U}`]);
+    // ───── shipping ─────
+    section('shipping');
+    const RULES = { baseFeePaise: 4900, freeAbovePaise: 99900, originPincode: '560001', handlingDays: 1, blockedPrefixes: ['19'] };
+    r = await buyer.get('/admin/shipping');
+    check('shipping settings need admin', r.status === 403);
+    r = await alice2.put('/admin/shipping', { ...RULES, originPincode: '12' });
+    check('origin pincode validated', r.status === 400 && JSON.stringify(r.json.message).includes('originPincode must be 6 digits'), r.text);
+    r = await alice2.put('/admin/shipping', { ...RULES, blockedPrefixes: ['x'] });
+    check('blocked prefixes validated', r.status === 400, r.text);
+    r = await alice2.put('/admin/shipping', { ...RULES, baseFeePaise: -1 });
+    check('negative fee refused', r.status === 400, r.text);
+    r = await alice2.put('/admin/shipping', RULES);
+    check('save shipping rules', r.status === 200 && r.json.baseFeePaise === 4900 && r.json.freeAbovePaise === 99900 && r.json.blockedPrefixes.join() === '19', r.text);
+    r = await alice2.get('/admin/shipping');
+    check('shipping rules persist', r.json.originPincode === '560001' && r.json.handlingDays === 1, r.text);
+
+    r = await anon.get('/shipping/estimate?pincode=560034');
+    check('estimate is public; same area is quickest', r.status === 200 && r.json.serviceable === true && r.json.minDays === 2 && r.json.maxDays === 3 && r.json.feePaise === 4900 && r.json.freeAbovePaise === 99900 && /^\d{4}-\d\d-\d\d$/.test(r.json.from) && r.json.to >= r.json.from, r.text);
+    r = await anon.get('/shipping/estimate?pincode=110001');
+    check('far away takes longer', r.json.minDays === 5 && r.json.maxDays === 8, r.text);
+    r = await anon.get('/shipping/estimate?pincode=194101');
+    check('blocked area is not serviceable', r.status === 200 && r.json.serviceable === false && r.json.from === null, r.text);
+    r = await anon.get('/shipping/estimate?pincode=12345');
+    check('bad pincode → 400', r.status === 400 && /6-digit/.test(r.json.message), r.text);
+    r = await anon.get('/shipping/estimate');
+    check('missing pincode → 400', r.status === 400);
+
+    await buyer.put(`/account/cart/${pa.id}`, { qty: 2 });
+    const st = (await buyer.get('/account/state')).json;
+    const sub2 = st.cart.reduce((n, l) => n + l.product.price * 100 * l.qty, 0);
+    const preview = (b) => buyer.post('/checkout/preview', b);
+    r = await anon.post('/checkout/preview', {});
+    check('preview needs login', r.status === 401);
+    r = await preview({ pincode: '560001' });
+    check('preview adds the shipping fee below the threshold', r.status === 200 && r.json.subtotalPaise === sub2 && r.json.shippingPaise === 4900 && r.json.totalPaise === sub2 + 4900 && r.json.discountPaise === 0 && r.json.delivery.serviceable === true, r.text);
+    r = await preview({});
+    check('preview works without a pincode', r.status === 200 && r.json.delivery === null && r.json.shippingPaise === 4900, r.text);
+    r = await preview({ pincode: '5600' });
+    check('preview validates the pincode', r.status === 400, r.text);
+    r = await preview({ pincode: '194101' });
+    check('preview reports an unserviceable pincode', r.status === 200 && r.json.delivery.serviceable === false);
+    await alice2.put('/admin/shipping', { ...RULES, freeAbovePaise: sub2 });
+    r = await preview({ pincode: '560001' });
+    check('free exactly at the threshold', r.json.shippingPaise === 0 && r.json.totalPaise === sub2, r.text);
+    await alice2.put('/admin/shipping', { ...RULES, freeAbovePaise: sub2 + 1 });
+    r = await preview({ pincode: '560001' });
+    check('one paise short is not free', r.json.shippingPaise === 4900, r.text);
+    const fs = (await alice2.post('/admin/coupons', { code: `FS${U}`, type: 'FREE_SHIPPING', perUserLimit: null })).json;
+    check('free-shipping coupon needs no value', fs.type === 'FREE_SHIPPING' && fs.value === 0, fs);
+    r = await preview({ pincode: '560001', couponCode: fs.code.toLowerCase() });
+    check('free-shipping coupon waives the fee', r.status === 200 && r.json.shippingPaise === 0 && r.json.freeShipping === true && r.json.discountPaise === 0 && r.json.totalPaise === sub2 && r.json.couponCode === fs.code, r.text);
+    r = await buyer.post('/coupons/validate', { code: fs.code });
+    check('validate reports free shipping', r.status === 200 && r.json.freeShipping === true && r.json.discountPaise === 0, r.text);
+    r = await preview({ pincode: '560001', couponCode: 'NOPE-NOPE' });
+    check('preview surfaces coupon errors', r.status === 400 && /not valid/.test(r.json.message), r.text);
+
+    const checkoutRaw = async (body) => {
+      let res = await buyer.post('/checkout', body);
+      if (res.status === 429) { await new Promise((x) => setTimeout(x, 61_000)); res = await buyer.post('/checkout', body); }
+      return res;
+    };
+    r = await checkoutRaw({ ...addr, pincode: '194101' });
+    check('checkout refuses an unserviceable pincode', r.status === 400 && /cannot deliver/.test(r.json.message), r.text);
+    r = await checkoutRaw(addr);
+    check('checkout charges the shipping fee', r.status === 200 && r.json.amount === sub2 + 4900 && rzpCalls.at(-1).body.amount === sub2 + 4900, r.text);
+    const shipOrder = r.json;
+    r = await buyer.get(`/orders/${shipOrder.orderId}`);
+    check('order records shipping and the delivery window', r.json.shippingPaise === 4900 && r.json.subtotalPaise === sub2 && r.json.amount === sub2 + 4900 && /^\d{4}-\d\d-\d\d$/.test(r.json.estimatedFrom) && r.json.estimatedTo >= r.json.estimatedFrom, r.text.slice(0, 400));
+    r = await checkoutRaw({ ...addr, couponCode: fs.code });
+    check('checkout with a free-shipping coupon', r.status === 200 && r.json.amount === sub2, r.text);
+    r = await buyer.get(`/orders/${r.json.orderId}`);
+    check('free-shipping order has no fee', r.json.shippingPaise === 0 && r.json.couponCode === fs.code && r.json.discountPaise === 0, r.text.slice(0, 300));
+    await alice2.put('/admin/shipping', { baseFeePaise: 4900, freeAbovePaise: 99900, originPincode: '560001', handlingDays: 1, blockedPrefixes: [] });
     await db.query(`delete from "Order" where "couponId" in (select id from "Coupon" where code like $1)`, [`%${U}`]);
     await db.query(`delete from "Coupon" where code like $1`, [`%${U}`]);
   }

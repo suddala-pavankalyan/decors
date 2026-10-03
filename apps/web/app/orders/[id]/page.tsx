@@ -8,6 +8,7 @@ import { fromPaise } from '@/lib/money';
 import Icon from '@/components/Icon';
 import OrderTimeline from '@/components/OrderTimeline';
 import { REFUND_LABEL, STATUS_LABEL, canCancel } from '@/lib/orderStatus';
+import { window as dateWindow } from '@/lib/delivery';
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -118,11 +119,17 @@ export default function OrderPage() {
             <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
           </li>
         ))}
+        {(order.discountPaise > 0 || order.shippingPaise > 0) && (
+          <li className="flex justify-between border-t pt-2 text-sm text-slate-600"><span>Subtotal</span><span className="tabular-nums">{fromPaise(order.subtotalPaise)}</span></li>
+        )}
         {order.discountPaise > 0 && (
-          <>
-            <li className="flex justify-between border-t pt-2 text-sm text-slate-600"><span>Subtotal</span><span className="tabular-nums">{fromPaise(order.subtotalPaise)}</span></li>
-            <li className="flex justify-between text-sm text-emerald-700"><span>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span><span className="tabular-nums">−{fromPaise(order.discountPaise)}</span></li>
-          </>
+          <li className="flex justify-between text-sm text-emerald-700"><span>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span><span className="tabular-nums">−{fromPaise(order.discountPaise)}</span></li>
+        )}
+        {order.couponCode && order.discountPaise === 0 && order.shippingPaise === 0 && (
+          <li className="flex justify-between text-sm text-emerald-700"><span>{order.couponCode}</span><span>Free shipping</span></li>
+        )}
+        {(order.discountPaise > 0 || order.shippingPaise > 0 || order.couponCode) && (
+          <li className="flex justify-between text-sm text-slate-600"><span>Shipping</span><span className="tabular-nums">{order.shippingPaise === 0 ? 'Free' : fromPaise(order.shippingPaise)}</span></li>
         )}
         <li className="flex justify-between border-t pt-2 font-bold"><span>Total</span><span className="tabular-nums">{fromPaise(order.amount)}</span></li>
       </ul>
@@ -131,6 +138,9 @@ export default function OrderPage() {
         <p className="mt-1">{order.shipName} · {order.shipPhone}</p>
         <p>{order.shipLine1}{order.shipLine2 ? `, ${order.shipLine2}` : ''}</p>
         <p>{order.shipCity}, {order.shipState} {order.shipPincode}</p>
+        {order.estimatedFrom && order.estimatedTo && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+          <p className="mt-2 rounded-xl bg-fuchsia-50 px-3 py-2 text-fuchsia-900">Estimated delivery <strong>{dateWindow(order.estimatedFrom, order.estimatedTo)}</strong></p>
+        )}
       </section>
       <Link href="/shop" className="mt-6 inline-block text-fuchsia-600 hover:underline">Continue shopping</Link>
     </main>

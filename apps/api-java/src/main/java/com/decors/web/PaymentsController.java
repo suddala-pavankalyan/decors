@@ -36,6 +36,12 @@ public class PaymentsController {
     return orders.checkout(user, address);
   }
 
+  /** What the order would cost with this pincode and coupon: items, discount, shipping, total and delivery dates. */
+  @PostMapping("/checkout/preview") @Authenticated @RateLimit(limit = 60)
+  public OrdersService.Preview preview(@CurrentUser AppUser user, @Valid @RequestBody PaymentDtos.Preview dto) {
+    return orders.preview(user, dto.pincode(), dto.couponCode());
+  }
+
   @PostMapping("/checkout/verify") @Authenticated @RateLimit(limit = 20)
   public Map<String, Object> verify(@CurrentUser AppUser user, @Valid @RequestBody PaymentDtos.Verify dto) {
     return orders.verify(user, dto);

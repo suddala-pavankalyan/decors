@@ -2,12 +2,12 @@ import { API } from '@/lib/api';
 
 export type CouponState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'SCHEDULED' | 'EXHAUSTED';
 export interface Coupon {
-  id: string; code: string; description: string | null; type: 'PERCENT' | 'FLAT'; value: number;
+  id: string; code: string; description: string | null; type: 'PERCENT' | 'FLAT' | 'FREE_SHIPPING'; value: number;
   maxDiscountPaise: number | null; minOrderPaise: number; startsAt: string | null; expiresAt: string | null;
   usageLimit: number | null; perUserLimit: number | null; active: boolean; redemptions: number; state: CouponState; createdAt: string;
 }
 export interface CouponInput {
-  code: string; description?: string; type: 'PERCENT' | 'FLAT'; value: number; maxDiscountPaise?: number | null; minOrderPaise?: number;
+  code: string; description?: string; type: 'PERCENT' | 'FLAT' | 'FREE_SHIPPING'; value?: number; maxDiscountPaise?: number | null; minOrderPaise?: number;
   startsAt?: string | null; expiresAt?: string | null; usageLimit?: number | null; perUserLimit?: number | null; active?: boolean;
 }
 

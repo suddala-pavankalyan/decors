@@ -21,6 +21,9 @@ public class ShopOrder {
   public int amount;
   public int subtotalPaise;
   public int discountPaise;
+  public int shippingPaise;
+  public java.time.LocalDate estimatedFrom;
+  public java.time.LocalDate estimatedTo;
   public String couponId;
   public String couponCode;
   public String currency = "INR";

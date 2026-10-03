@@ -11,10 +11,12 @@ import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
 import com.decors.service.AddressService;
 import com.decors.service.CouponService;
+import com.decors.service.ShippingService;
 import com.decors.repo.Repositories.OrderItemRepository;
 import com.decors.repo.Repositories.OrderRepository;
 import com.decors.repo.Repositories.UserRepository;
 import com.decors.web.dto.PaymentDtos;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,9 +41,11 @@ public class OrdersService {
   private final CancellationService cancellation;
   private final AddressService addresses;
   private final CouponService coupons;
+  private final ShippingService shipping;
 
   public OrdersService(UserRepository users, CartItemRepository cart, OrderRepository orders, OrderItemRepository orderItems,
-      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons) {
+      RazorpayGateway gateway, JdbcClient jdbc, TransactionTemplate tx, OrderEvents events, CancellationService cancellation, AddressService addresses, CouponService coupons, ShippingService shipping) {
+    this.shipping = shipping;
     this.coupons = coupons;
     this.addresses = addresses;
     this.events = events;
@@ -93,13 +97,21 @@ public class OrdersService {
         items.add(i);
       }
       o.subtotalPaise = Math.toIntExact(total);
+      boolean freeShipping = false;
       if (addr.couponCode() != null && !addr.couponCode().isBlank()) {
         CouponService.Applied applied = coupons.apply(user.id, addr.couponCode(), o.subtotalPaise, true);
         o.couponId = applied.couponId();
         o.couponCode = applied.code();
         o.discountPaise = applied.discountPaise();
+        freeShipping = applied.freeShipping();
       }
-      o.amount = o.subtotalPaise - o.discountPaise;
+      ShippingService.Settings rules = shipping.settings();
+      ShippingService.Delivery delivery = ShippingService.estimate(rules, addr.pincode(), LocalDate.now(ShippingService.SHOP_ZONE));
+      if (!delivery.serviceable()) throw ApiException.badRequest("Sorry, we cannot deliver to this pincode yet");
+      o.shippingPaise = ShippingService.fee(rules, o.subtotalPaise - o.discountPaise, freeShipping);
+      o.estimatedFrom = delivery.from();
+      o.estimatedTo = delivery.to();
+      o.amount = o.subtotalPaise - o.discountPaise + o.shippingPaise;
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
       events.record(o.id, OrderStatus.PENDING, "Order placed");
@@ -122,6 +134,37 @@ public class OrdersService {
     out.put("currency", "INR");
     out.put("keyId", gateway.keyId());
     return out;
+  }
+
+  public record Preview(int subtotalPaise, int discountPaise, int shippingPaise, int totalPaise, String couponCode,
+      boolean freeShipping, ShippingService.Delivery delivery) {}
+
+  /** What checkout would charge right now for the saved cart, a coupon and a delivery pincode. Writes nothing. */
+  public Preview preview(AppUser user, String pincode, String couponCode) {
+    List<CartItem> lines = cart.findForUser(user.id);
+    if (lines.isEmpty()) throw ApiException.badRequest("Your cart is empty");
+    long subtotal = 0;
+    for (CartItem c : lines) subtotal += (long) c.product.price * 100 * c.qty;
+    int sub = Math.toIntExact(subtotal);
+    int discount = 0;
+    boolean freeShipping = false;
+    String code = null;
+    if (couponCode != null && !couponCode.isBlank()) {
+      CouponService.Applied a = coupons.apply(user.id, couponCode, sub, false);
+      discount = a.discountPaise();
+      freeShipping = a.freeShipping();
+      code = a.code();
+    }
+    ShippingService.Settings rules = shipping.settings();
+    ShippingService.Delivery delivery = pincode == null || pincode.isBlank() ? null
+        : ShippingService.estimate(rules, validPincode(pincode), LocalDate.now(ShippingService.SHOP_ZONE));
+    int fee = ShippingService.fee(rules, sub - discount, freeShipping);
+    return new Preview(sub, discount, fee, sub - discount + fee, code, freeShipping, delivery);
+  }
+
+  private static String validPincode(String p) {
+    if (!ShippingService.validPincode(p)) throw ApiException.badRequest("Enter a 6-digit pincode");
+    return p;
   }
 
   /** Called from the browser after Razorpay reports success. */
@@ -215,6 +258,9 @@ public class OrdersService {
     m.put("amount", o.amount);
     m.put("subtotalPaise", o.subtotalPaise);
     m.put("discountPaise", o.discountPaise);
+    m.put("shippingPaise", o.shippingPaise);
+    m.put("estimatedFrom", o.estimatedFrom);
+    m.put("estimatedTo", o.estimatedTo);
     m.put("couponCode", o.couponCode);
     m.put("currency", o.currency);
     m.put("razorpayOrderId", o.razorpayOrderId);

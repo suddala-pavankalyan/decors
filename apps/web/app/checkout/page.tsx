@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ResendVerification from '@/components/ResendVerification';
 import AddressFields, { EMPTY_ADDRESS } from '@/components/AddressFields';
-import { fetchAddresses, startCheckout, validateCoupon, verifyPayment, type Address, type CouponQuote, type SavedAddress } from '@/lib/account';
+import { fetchAddresses, previewCheckout, startCheckout, verifyPayment, type Address, type CheckoutPreview, type SavedAddress } from '@/lib/account';
+import { feeText, isPincode, window as dateWindow } from '@/lib/delivery';
 import { useAuth } from '@/lib/auth';
 import { fromPaise, rupees } from '@/lib/money';
 import { loadRazorpay } from '@/lib/razorpay';
@@ -25,7 +26,8 @@ export default function CheckoutPage() {
   const [picked, setPicked] = useState<string | null>(null); // id of the chosen saved address, null = typing a new one
   const [remember, setRemember] = useState(true);
   const [code, setCode] = useState('');
-  const [quote, setQuote] = useState<CouponQuote | null>(null);
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
+  const [preview, setPreview] = useState<CheckoutPreview | null>(null);
   const [couponError, setCouponError] = useState('');
   const [applying, setApplying] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,18 @@ export default function CheckoutPage() {
       if (d) { setPicked(d.id); setAddr(d); }
     }).catch(() => {});
   }, [user]);
+
+  // What the server would charge now: items, discount, shipping and delivery dates for the pincode typed so far.
+  useEffect(() => {
+    if (!user || cart.length === 0) return;
+    let live = true;
+    const t = setTimeout(() => {
+      previewCheckout(isPincode(addr.pincode) ? addr.pincode : undefined, appliedCode ?? undefined)
+        .then((p) => { if (live) setPreview(p); })
+        .catch((e) => { if (live && appliedCode) { setAppliedCode(null); setCouponError(e.message); } });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [user, addr.pincode, appliedCode, cart.length]);
 
   if (!hydrated || !ready) return <main className="p-10 text-center">Loading…</main>;
   if (!user) {
@@ -68,15 +82,18 @@ export default function CheckoutPage() {
     setApplying(true);
     setCouponError('');
     try {
-      setQuote(await validateCoupon(code));
+      const p = await previewCheckout(isPincode(addr.pincode) ? addr.pincode : undefined, code);
+      setPreview(p);
+      setAppliedCode(p.couponCode);
     } catch (err) {
-      setQuote(null);
+      setAppliedCode(null);
       setCouponError(err instanceof Error ? err.message : 'Could not apply the coupon');
     } finally {
       setApplying(false);
     }
   }
-  const total = quote ? quote.totalPaise / 100 : subtotal;
+  const totalText = preview ? fromPaise(preview.totalPaise) : rupees(subtotal);
+  const undeliverable = preview?.delivery?.serviceable === false;
 
   const isNew = !saved.some((a) => sameAddress(a, addr));
   const choose = (a: SavedAddress | null) => { setPicked(a?.id ?? null); setAddr(a ?? EMPTY_ADDRESS); };
@@ -87,7 +104,7 @@ export default function CheckoutPage() {
     setError('');
     setBusy(true);
     try {
-      const session = await startCheckout(addr, remember && isNew, quote?.code);
+      const session = await startCheckout(addr, remember && isNew, appliedCode ?? undefined);
       await loadRazorpay();
       const Razorpay = window.Razorpay!;
       const rzp = new Razorpay({
@@ -172,9 +189,9 @@ export default function CheckoutPage() {
           </label>
         )}
         {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</p>}
-        <button type="submit" disabled={busy || !user.emailVerified}
+        <button type="submit" disabled={busy || !user.emailVerified || undeliverable}
           className="w-full rounded-full bg-gradient-to-r from-rose-500 to-fuchsia-500 py-3 font-semibold text-white disabled:opacity-60">
-          {busy ? 'Opening payment…' : `Pay ${rupees(total)}`}
+          {busy ? 'Opening payment…' : `Pay ${totalText}`}
         </button>
         <p className="text-center text-xs text-slate-500">Payments are processed securely by Razorpay.</p>
       </form>
@@ -190,10 +207,10 @@ export default function CheckoutPage() {
           ))}
         </ul>
         <div className="mt-4 border-t pt-3">
-          {quote ? (
+          {appliedCode ? (
             <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-              <span><strong>{quote.code}</strong> applied</span>
-              <button type="button" onClick={() => { setQuote(null); setCode(''); }} className="text-xs underline">Remove</button>
+              <span><strong>{appliedCode}</strong> applied</span>
+              <button type="button" onClick={() => { setAppliedCode(null); setCode(''); }} className="text-xs underline">Remove</button>
             </div>
           ) : (
             <form onSubmit={applyCoupon} className="flex gap-2" aria-label="Coupon">
@@ -207,14 +224,20 @@ export default function CheckoutPage() {
           {couponError && <p role="alert" className="mt-2 text-xs text-rose-600">{couponError}</p>}
         </div>
         <div className="mt-3 space-y-1 text-sm">
-          {quote && (
+          {preview && (
             <>
-              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="tabular-nums">{rupees(subtotal)}</span></div>
-              <div className="flex justify-between text-emerald-700"><span>Discount</span><span className="tabular-nums">−{fromPaise(quote.discountPaise)}</span></div>
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="tabular-nums">{fromPaise(preview.subtotalPaise)}</span></div>
+              {preview.discountPaise > 0 && <div className="flex justify-between text-emerald-700"><span>Discount</span><span className="tabular-nums">−{fromPaise(preview.discountPaise)}</span></div>}
+              <div className="flex justify-between text-slate-600"><span>Shipping</span><span className="tabular-nums">{preview.shippingPaise === 0 ? 'Free' : fromPaise(preview.shippingPaise)}</span></div>
             </>
           )}
-          <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="tabular-nums">{rupees(total)}</span></div>
+          <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span className="tabular-nums">{totalText}</span></div>
         </div>
+        {preview?.delivery?.serviceable && preview.delivery.from && preview.delivery.to && (
+          <p className="mt-3 rounded-xl bg-fuchsia-50 px-3 py-2 text-xs text-fuchsia-900">Estimated delivery <strong>{dateWindow(preview.delivery.from, preview.delivery.to)}</strong></p>
+        )}
+        {undeliverable && <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">Sorry, we can’t deliver to this pincode yet.</p>}
+        {preview && preview.shippingPaise > 0 && preview.delivery === null && <p className="mt-2 text-xs text-slate-500">{feeText({ feePaise: preview.shippingPaise, freeAbovePaise: null })}. Enter your pincode for delivery dates.</p>}
         <p className="mt-2 text-xs text-slate-500">The final amount is confirmed by our server at payment time.</p>
       </aside>
     </main>

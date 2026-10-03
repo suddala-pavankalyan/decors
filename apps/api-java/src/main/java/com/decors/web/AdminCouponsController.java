@@ -26,7 +26,7 @@ public class AdminCouponsController {
   }
 
   private static CouponService.Input input(AdminDtos.CouponInput d) {
-    return new CouponService.Input(d.code(), d.description(), d.type(), d.value(), d.maxDiscountPaise(), d.minOrderPaise(),
+    return new CouponService.Input(d.code(), d.description(), d.type(), d.value() == null ? 0 : d.value(), d.maxDiscountPaise(), d.minOrderPaise(),
         utc(d.startsAt()), utc(d.expiresAt()), d.usageLimit(), d.perUserLimit(), d.active());
   }
 

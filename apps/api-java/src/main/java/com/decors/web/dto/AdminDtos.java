@@ -97,9 +97,11 @@ public final class AdminDtos {
       @JsonDeserialize(using = Trim.class)
       @Size(max = 120, message = "description must be shorter than or equal to 120 characters")
       String description,
-      @NotNull(message = "type must be PERCENT or FLAT") @Pattern(regexp = "^(PERCENT|FLAT)$", message = "type must be PERCENT or FLAT")
+      @NotNull(message = "type must be PERCENT, FLAT or FREE_SHIPPING")
+      @Pattern(regexp = "^(PERCENT|FLAT|FREE_SHIPPING)$", message = "type must be PERCENT, FLAT or FREE_SHIPPING")
       String type,
-      @NotNull(message = "value must be an integer number") @Min(value = 1, message = "value must not be less than 1")
+      /** Percent, or paise for FLAT. Ignored (may be left out) for FREE_SHIPPING. */
+      @Min(value = 0, message = "value must not be less than 0")
       @Max(value = 100_000_000, message = "value must not be greater than 100000000")
       Integer value,
       @Min(value = 1, message = "maxDiscountPaise must not be less than 1") Integer maxDiscountPaise,
@@ -109,4 +111,17 @@ public final class AdminDtos {
       @Min(value = 1, message = "usageLimit must not be less than 1") Integer usageLimit,
       @Min(value = 1, message = "perUserLimit must not be less than 1") Integer perUserLimit,
       Boolean active) {}
+
+  public record ShippingInput(
+      @NotNull(message = "baseFeePaise must be an integer number") @Min(value = 0, message = "baseFeePaise must not be less than 0")
+      @Max(value = 1_000_000, message = "baseFeePaise must not be greater than 1000000")
+      Integer baseFeePaise,
+      @Min(value = 1, message = "freeAbovePaise must not be less than 1") Integer freeAbovePaise,
+      @NotNull(message = "originPincode must be 6 digits") @Pattern(regexp = "^[1-9][0-9]{5}$", message = "originPincode must be 6 digits")
+      String originPincode,
+      @NotNull(message = "handlingDays must be an integer number") @Min(value = 0, message = "handlingDays must not be less than 0")
+      @Max(value = 30, message = "handlingDays must not be greater than 30")
+      Integer handlingDays,
+      @NotNull(message = "blockedPrefixes must be an array") @Size(max = 50, message = "blockedPrefixes must contain no more than 50 elements")
+      List<@Pattern(regexp = "^[1-9][0-9]{0,5}$", message = "each blocked prefix must be 1-6 digits") String> blockedPrefixes) {}
 }

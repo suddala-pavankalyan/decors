@@ -144,6 +144,9 @@ function Detail() {
             <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>
           </li>
         ))}
+        {order.shippingPaise > 0 && (
+          <li className="flex justify-between border-t pt-2 text-sm text-slate-600"><span>Shipping</span><span className="tabular-nums">{fromPaise(order.shippingPaise)}</span></li>
+        )}
         {order.discountPaise > 0 && (
           <li className="flex justify-between border-t pt-2 text-sm text-emerald-700"><span>Discount{order.couponCode ? ` (${order.couponCode})` : ''}</span><span className="tabular-nums">−{fromPaise(order.discountPaise)}</span></li>
         )}

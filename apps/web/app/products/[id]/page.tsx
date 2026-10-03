@@ -8,6 +8,7 @@ import ProductCard from '@/components/ProductCard';
 import { fetchProduct } from '@/lib/api';
 import { rupees } from '@/lib/money';
 import Icon from '@/components/Icon';
+import DeliveryCheck from '@/components/DeliveryCheck';
 
 type Props = { params: { id: string } };
 
@@ -56,6 +57,7 @@ export default async function ProductPage({ params }: Props) {
             />
             <WishButton p={p} className="border border-slate-200" />
           </div>
+          <DeliveryCheck />
         </section>
       </div>
 

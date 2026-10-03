@@ -12,7 +12,7 @@ const TONE: Record<CouponState, string> = {
 const field = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-200';
 
 interface Form {
-  code: string; description: string; type: 'PERCENT' | 'FLAT'; value: string; maxDiscount: string; minOrder: string;
+  code: string; description: string; type: 'PERCENT' | 'FLAT' | 'FREE_SHIPPING'; value: string; maxDiscount: string; minOrder: string;
   startsAt: string; expiresAt: string; usageLimit: string; perUserLimit: string;
 }
 const EMPTY: Form = { code: '', description: '', type: 'PERCENT', value: '10', maxDiscount: '', minOrder: '', startsAt: '', expiresAt: '', usageLimit: '', perUserLimit: '1' };
@@ -22,7 +22,7 @@ const paise = (s: string) => (s.trim() === '' ? null : Math.round(Number(s) * 10
 const iso = (s: string) => (s ? new Date(s).toISOString() : null);
 
 function describe(c: Coupon) {
-  const off = c.type === 'PERCENT' ? `${c.value}% off${c.maxDiscountPaise ? ` (up to ${fromPaise(c.maxDiscountPaise)})` : ''}` : `${fromPaise(c.value)} off`;
+  const off = c.type === 'FREE_SHIPPING' ? 'Free shipping' : c.type === 'PERCENT' ? `${c.value}% off${c.maxDiscountPaise ? ` (up to ${fromPaise(c.maxDiscountPaise)})` : ''}` : `${fromPaise(c.value)} off`;
   return [off, c.minOrderPaise ? `min ${fromPaise(c.minOrderPaise)}` : null, c.perUserLimit ? `${c.perUserLimit} per customer` : 'unlimited per customer',
     c.usageLimit ? `${c.redemptions}/${c.usageLimit} used` : `${c.redemptions} used`].filter(Boolean).join(' · ');
 }
@@ -51,7 +51,7 @@ function Coupons() {
     await run(async () => {
       await createCoupon({
         code: form.code, description: form.description || undefined, type: form.type,
-        value: percent ? Math.round(Number(form.value)) : Math.round(Number(form.value) * 100),
+        value: form.type === 'FREE_SHIPPING' ? undefined : percent ? Math.round(Number(form.value)) : Math.round(Number(form.value) * 100),
         maxDiscountPaise: percent ? paise(form.maxDiscount) : null, minOrderPaise: paise(form.minOrder) ?? 0,
         startsAt: iso(form.startsAt), expiresAt: iso(form.expiresAt), usageLimit: int(form.usageLimit), perUserLimit: int(form.perUserLimit),
       });
@@ -78,11 +78,13 @@ function Coupons() {
             <label className="text-sm font-medium">Code<input className={`${field} uppercase`} value={form.code} onChange={set('code')} required maxLength={20} placeholder="WELCOME10" /></label>
             <label className="text-sm font-medium">Description (optional)<input className={field} value={form.description} onChange={set('description')} maxLength={120} /></label>
             <label className="text-sm font-medium">Type
-              <select className={field} value={form.type} onChange={set('type')}><option value="PERCENT">Percentage off</option><option value="FLAT">Flat amount off</option></select>
+              <select className={field} value={form.type} onChange={set('type')}><option value="PERCENT">Percentage off</option><option value="FLAT">Flat amount off</option><option value="FREE_SHIPPING">Free shipping</option></select>
             </label>
-            <label className="text-sm font-medium">{form.type === 'PERCENT' ? 'Percent off' : 'Amount off (₹)'}
-              <input className={field} type="number" min={1} max={form.type === 'PERCENT' ? 100 : undefined} step={form.type === 'PERCENT' ? 1 : 'any'} value={form.value} onChange={set('value')} required />
-            </label>
+            {form.type !== 'FREE_SHIPPING' && (
+              <label className="text-sm font-medium">{form.type === 'PERCENT' ? 'Percent off' : 'Amount off (₹)'}
+                <input className={field} type="number" min={1} max={form.type === 'PERCENT' ? 100 : undefined} step={form.type === 'PERCENT' ? 1 : 'any'} value={form.value} onChange={set('value')} required />
+              </label>
+            )}
             {form.type === 'PERCENT' && (
               <label className="text-sm font-medium">Maximum discount (₹, optional)<input className={field} type="number" min={1} step="any" value={form.maxDiscount} onChange={set('maxDiscount')} /></label>
             )}

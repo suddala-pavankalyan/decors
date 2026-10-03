@@ -25,9 +25,9 @@ public class CouponService {
   /** An unpaid order keeps its coupon "in use" for this long, then the use is released. */
   static final long HOLD_MINUTES = 30;
 
-  public record Applied(String couponId, String code, String description, int discountPaise) {}
+  public record Applied(String couponId, String code, String description, int discountPaise, boolean freeShipping) {}
 
-  public record Quote(String code, String description, int subtotalPaise, int discountPaise, int totalPaise) {}
+  public record Quote(String code, String description, int subtotalPaise, int discountPaise, int totalPaise, boolean freeShipping) {}
 
   private final JdbcClient jdbc;
   private final CartItemRepository cart;
@@ -90,9 +90,10 @@ public class CouponService {
     }
     if (c.usageLimit() != null && uses(c.id(), null) >= c.usageLimit()) throw ApiException.badRequest("This coupon has been fully redeemed");
     if (c.perUserLimit() != null && uses(c.id(), userId) >= c.perUserLimit()) throw ApiException.badRequest("You have already used this coupon");
-    int off = discount(c.type(), c.value(), c.maxDiscountPaise(), subtotalPaise);
-    if (off <= 0) throw ApiException.badRequest("This coupon does not apply to your cart");
-    return new Applied(c.id(), c.code(), c.description(), off);
+    boolean freeShipping = "FREE_SHIPPING".equals(c.type());
+    int off = freeShipping ? 0 : discount(c.type(), c.value(), c.maxDiscountPaise(), subtotalPaise);
+    if (off <= 0 && !freeShipping) throw ApiException.badRequest("This coupon does not apply to your cart");
+    return new Applied(c.id(), c.code(), c.description(), off, freeShipping);
   }
 
   /** What the customer sees when they press "Apply": the code checked against their saved cart. */
@@ -103,7 +104,7 @@ public class CouponService {
     int subtotal = 0;
     for (CartItem l : lines) subtotal += l.product.price * 100 * l.qty;
     Applied a = apply(userId, code, subtotal, false);
-    return new Quote(a.code(), a.description(), subtotal, a.discountPaise(), subtotal - a.discountPaise());
+    return new Quote(a.code(), a.description(), subtotal, a.discountPaise(), subtotal - a.discountPaise(), a.freeShipping());
   }
 
   // ───────────── admin ─────────────
@@ -140,9 +141,11 @@ public class CouponService {
   }
 
   private static void check(Input in) {
-    if (in.value() < 1) throw ApiException.badRequest("value must not be less than 1");
+    boolean freeShipping = "FREE_SHIPPING".equals(in.type());
+    if (!freeShipping && in.value() < 1) throw ApiException.badRequest("value must not be less than 1");
+    if (freeShipping && in.maxDiscountPaise() != null) throw ApiException.badRequest("maxDiscountPaise only applies to percentage coupons");
     if ("PERCENT".equals(in.type()) && in.value() > 100) throw ApiException.badRequest("A percentage coupon cannot take off more than 100%");
-    if (!"PERCENT".equals(in.type()) && in.maxDiscountPaise() != null) throw ApiException.badRequest("maxDiscountPaise only applies to percentage coupons");
+    if ("FLAT".equals(in.type()) && in.maxDiscountPaise() != null) throw ApiException.badRequest("maxDiscountPaise only applies to percentage coupons");
     if (in.startsAt() != null && in.expiresAt() != null && !in.expiresAt().isAfter(in.startsAt())) {
       throw ApiException.badRequest("The expiry must be after the start");
     }
@@ -182,7 +185,7 @@ public class CouponService {
 
   private void write(String sql, String id, Input in) {
     jdbc.sql(sql).param("id", id).param("code", in.code()).param("desc", in.description() == null || in.description().isBlank() ? null : in.description().trim())
-        .param("type", in.type()).param("value", in.value()).param("max", in.maxDiscountPaise())
+        .param("type", in.type()).param("value", "FREE_SHIPPING".equals(in.type()) ? 0 : in.value()).param("max", in.maxDiscountPaise())
         .param("min", in.minOrderPaise() == null ? 0 : in.minOrderPaise()).param("starts", in.startsAt()).param("expires", in.expiresAt())
         .param("ulimit", in.usageLimit()).param("plimit", in.perUserLimit()).param("active", in.active() == null || in.active()).update();
   }

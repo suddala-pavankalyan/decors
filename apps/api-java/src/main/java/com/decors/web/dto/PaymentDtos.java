@@ -77,4 +77,9 @@ public final class PaymentDtos {
       @JsonDeserialize(using = Trim.Upper.class) @NotNull(message = "code must be a string")
       @Size(min = 1, max = 40, message = "code must be longer than or equal to 1 and shorter than or equal to 40 characters")
       String code) {}
+
+  public record Preview(
+      @Size(max = 6, message = "pincode must be 6 digits") String pincode,
+      @JsonDeserialize(using = Trim.Upper.class) @Size(max = 40, message = "couponCode must be shorter than or equal to 40 characters")
+      String couponCode) {}
 }
