@@ -6,6 +6,7 @@ import com.decors.common.Time;
 import com.decors.domain.AppUser;
 import com.decors.domain.CartItem;
 import com.decors.domain.OrderItem;
+import com.decors.domain.OrderStatus;
 import com.decors.domain.ShopOrder;
 import com.decors.repo.Repositories.CartItemRepository;
 import com.decors.repo.Repositories.OrderItemRepository;
@@ -14,6 +15,7 @@ import com.decors.repo.Repositories.UserRepository;
 import com.decors.web.dto.PaymentDtos;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +85,7 @@ public class OrdersService {
       o.amount = Math.toIntExact(total);
       orders.saveAndFlush(o);
       orderItems.saveAll(items);
+      recordEvent(o.id, OrderStatus.PENDING, "Order placed");
       return o;
     });
 
@@ -120,10 +123,11 @@ public class OrdersService {
       if (order == null || order.amount != paidAmount) return;
       int changed = jdbc.sql("""
               update "Order" set status = 'PAID', "razorpayPaymentId" = :pay, "paidAt" = :t
-              where id = :id and status <> 'PAID'
+              where id = :id and status = 'PENDING'
               """)
           .param("pay", paymentId).param("t", Time.now()).param("id", order.id).update();
       if (changed == 0) return;
+      recordEvent(order.id, OrderStatus.PAID, "Payment received");
       // Remove what was bought from the cart; anything added since checkout started stays.
       jdbc.sql("""
               delete from "CartItem" where "userId" = :u
@@ -134,19 +138,47 @@ public class OrdersService {
   }
 
   public List<Map<String, Object>> list(AppUser user) {
-    List<ShopOrder> found = orders.findByUserIdOrderByCreatedAtDesc(user.id);
-    if (found.isEmpty()) return List.of();
-    Map<String, List<OrderItem>> items = orderItems.findByOrderIdInOrderByIdAsc(found.stream().map(o -> o.id).toList())
-        .stream().collect(Collectors.groupingBy(i -> i.orderId));
-    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()))).toList();
+    return views(orders.findByUserIdOrderByCreatedAtDesc(user.id));
   }
 
   public Map<String, Object> get(AppUser user, String id) {
     ShopOrder o = orders.findByIdAndUserId(id, user.id).orElseThrow(() -> ApiException.notFound("Order not found"));
-    return view(o, orderItems.findByOrderIdInOrderByIdAsc(List.of(o.id)));
+    return views(List.of(o)).get(0);
   }
 
-  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items) {
+  /** Adds a line to an order's timeline. Call inside the transaction that changes the status. */
+  public void recordEvent(String orderId, OrderStatus status, String note) {
+    jdbc.sql("""
+            insert into "OrderEvent" ("orderId", status, note, "createdAt") values (:o, cast(:s as "OrderStatus"), :n, :t)
+            """)
+        .param("o", orderId).param("s", status.name()).param("n", note).param("t", Time.now()).update();
+  }
+
+  /** The JSON for orders: lines and timeline are loaded for all of them in two queries. */
+  public List<Map<String, Object>> views(List<ShopOrder> found) {
+    if (found.isEmpty()) return List.of();
+    List<String> ids = found.stream().map(o -> o.id).toList();
+    Map<String, List<OrderItem>> items = orderItems.findByOrderIdInOrderByIdAsc(ids)
+        .stream().collect(Collectors.groupingBy(i -> i.orderId));
+    Map<String, List<Map<String, Object>>> events = new HashMap<>();
+    jdbc.sql("""
+            select "orderId", status::text as status, note, "createdAt" from "OrderEvent"
+            where "orderId" in (:ids) order by "createdAt", id
+            """)
+        .param("ids", ids)
+        .query((rs, n) -> {
+          Map<String, Object> e = new LinkedHashMap<>();
+          e.put("status", rs.getString("status"));
+          e.put("note", rs.getString("note"));
+          e.put("createdAt", iso(rs.getObject("createdAt", LocalDateTime.class)));
+          return Map.entry(rs.getString("orderId"), e);
+        })
+        .list()
+        .forEach(en -> events.computeIfAbsent(en.getKey(), k -> new ArrayList<>()).add(en.getValue()));
+    return found.stream().map(o -> view(o, items.getOrDefault(o.id, List.of()), events.getOrDefault(o.id, List.of()))).toList();
+  }
+
+  private static Map<String, Object> view(ShopOrder o, List<OrderItem> items, List<Map<String, Object>> events) {
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("id", o.id);
     m.put("userId", o.userId);
@@ -164,6 +196,8 @@ public class OrdersService {
     m.put("shipPincode", o.shipPincode);
     m.put("createdAt", iso(o.createdAt));
     m.put("paidAt", iso(o.paidAt));
+    m.put("carrier", o.carrier);
+    m.put("trackingNumber", o.trackingNumber);
     m.put("items", items.stream().map(i -> {
       Map<String, Object> im = new LinkedHashMap<>();
       im.put("id", i.id);
@@ -174,6 +208,7 @@ public class OrdersService {
       im.put("qty", i.qty);
       return im;
     }).toList());
+    m.put("events", events);
     return m;
   }
 

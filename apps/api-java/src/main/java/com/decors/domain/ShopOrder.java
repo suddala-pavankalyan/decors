@@ -31,4 +31,6 @@ public class ShopOrder {
   public String shipPincode;
   public LocalDateTime createdAt;
   public LocalDateTime paidAt;
+  public String carrier;
+  public String trackingNumber;
 }

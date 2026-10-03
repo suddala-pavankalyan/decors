@@ -1,3 +1,4 @@
 package com.decors.domain;
 
-public enum OrderStatus { PENDING, PAID }
+/** PENDING (awaiting payment) → PAID → PACKED → SHIPPED → DELIVERED. */
+public enum OrderStatus { PENDING, PAID, PACKED, SHIPPED, DELIVERED }

@@ -6,6 +6,8 @@ import { fetchOrder, type Order } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { fromPaise } from '@/lib/money';
 import Icon from '@/components/Icon';
+import OrderTimeline from '@/components/OrderTimeline';
+import { STATUS_LABEL } from '@/lib/orderStatus';
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,15 +36,35 @@ export default function OrderPage() {
   if (error) return <main className="p-10 text-center text-rose-600">{error}</main>;
   if (!order) return <main className="p-10 text-center">Loading…</main>;
 
-  const paid = order.status === 'PAID';
+  const paid = order.status !== 'PENDING';
+  const headline = {
+    PENDING: 'Waiting for payment confirmation',
+    PAID: 'Thank you! Your order is confirmed',
+    PACKED: 'Your order is packed',
+    SHIPPED: 'Your order is on its way',
+    DELIVERED: 'Your order was delivered',
+  }[order.status];
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">
       <div className={`rounded-3xl p-6 text-center ${paid ? 'bg-emerald-50' : 'bg-amber-50'}`}>
         <Icon name={paid ? 'sparkle' : 'clock'} size={44} className={`mx-auto ${paid ? 'text-emerald-600' : 'text-amber-600'}`} />
-        <h1 className="mt-2 text-2xl font-bold">{paid ? 'Thank you! Your order is confirmed' : 'Waiting for payment confirmation'}</h1>
+        <h1 className="mt-2 text-2xl font-bold">{headline}</h1>
         <p className="mt-1 text-sm text-slate-600">Order {order.id}{order.razorpayPaymentId ? ` · Payment ${order.razorpayPaymentId}` : ''}</p>
       </div>
-      <ul className="mt-6 space-y-2 rounded-2xl bg-white p-4 shadow">
+      <section className="mt-6 rounded-2xl bg-white p-4 shadow">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Order progress</h2>
+          <span className="text-xs font-semibold text-slate-500">{STATUS_LABEL[order.status]}</span>
+        </div>
+        <OrderTimeline status={order.status} events={order.events} />
+        {order.carrier || order.trackingNumber ? (
+          <p className="mt-4 rounded-xl bg-fuchsia-50 px-3 py-2 text-sm text-fuchsia-900">
+            {order.carrier ? <>Shipped with <strong>{order.carrier}</strong></> : 'Shipment'}
+            {order.trackingNumber ? <> · Tracking number <strong className="tabular-nums">{order.trackingNumber}</strong></> : null}
+          </p>
+        ) : null}
+      </section>
+      <ul className="mt-4 space-y-2 rounded-2xl bg-white p-4 shadow">
         {order.items.map((i) => (
           <li key={i.id} className="flex justify-between text-sm">
             <span>{i.name} × {i.qty}</span><span className="tabular-nums">{fromPaise(i.unitPricePaise * i.qty)}</span>

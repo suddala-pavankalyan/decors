@@ -71,12 +71,13 @@ The schema is owned by two parallel histories that must stay in step:
 
 | Backend | Where migrations live |
 | --- | --- |
-| NestJS (`apps/api`) | `apps/api/prisma/migrations` |
+| NestJS (`apps/api`) | `apps/api/prisma/migrations` (frozen: order tracking and later features exist only in the Java API) |
 | Java (this folder) | `src/main/resources/db/schema/baseline.sql` (the 8 Prisma migrations so far) and Java migrations in `src/main/java/db/migration` |
 
 Flyway keeps its bookkeeping table in its own `flyway` schema, so Prisma does not see it as drift when both
 backends share a database. **When the schema changes later, add a Prisma migration and a matching Flyway migration**
-(`V2__something.sql` in `src/main/resources/db/migration`). If you retire the NestJS API, Flyway becomes the only
+(`V3__something.sql` in `src/main/resources/db/migration`; start the file with `SET search_path TO public;`, because
+Flyway's own schema comes first on the search path and tables would otherwise land there). If you retire the NestJS API, Flyway becomes the only
 history and the Prisma folder can go.
 
 ## Tests

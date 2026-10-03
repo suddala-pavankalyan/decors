@@ -24,13 +24,17 @@ export const deleteCart = () => req('cart', 'DELETE');
 export const putWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'PUT');
 export const deleteWish = (id: string) => req(`wishlist/${encodeURIComponent(id)}`, 'DELETE');
 
+export type OrderStatus = 'PENDING' | 'PAID' | 'PACKED' | 'SHIPPED' | 'DELIVERED';
+export interface OrderEvent { status: OrderStatus; note: string | null; createdAt: string }
 export interface OrderItem { id: number; productId: string | null; name: string; unitPricePaise: number; qty: number }
 export interface Order {
-  id: string; status: 'PENDING' | 'PAID'; amount: number; currency: string; createdAt: string; paidAt: string | null;
+  id: string; status: OrderStatus; amount: number; currency: string; createdAt: string; paidAt: string | null;
   razorpayPaymentId: string | null;
   shipName: string; shipPhone: string; shipLine1: string; shipLine2: string | null;
   shipCity: string; shipState: string; shipPincode: string;
+  carrier: string | null; trackingNumber: string | null;
   items: OrderItem[];
+  events: OrderEvent[];
 }
 export interface Address { name: string; phone: string; line1: string; line2: string; city: string; state: string; pincode: string }
 export interface CheckoutSession { orderId: string; razorpayOrderId: string; amount: number; currency: string; keyId: string }

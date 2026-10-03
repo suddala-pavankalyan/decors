@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { fetchOrders, type Order } from '@/lib/account';
 import { useAuth } from '@/lib/auth';
 import { fromPaise } from '@/lib/money';
+import { STATUS_LABEL, STATUS_TONE } from '@/lib/orderStatus';
 
 export default function OrdersPage() {
   const { user, ready } = useAuth();
@@ -32,8 +33,8 @@ export default function OrdersPage() {
               </div>
               <div className="text-right">
                 <p className="font-bold tabular-nums">{fromPaise(o.amount)}</p>
-                <span className={`text-xs font-semibold ${o.status === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {o.status === 'PAID' ? 'Paid' : 'Awaiting payment'}
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_TONE[o.status]}`}>
+                  {STATUS_LABEL[o.status]}
                 </span>
               </div>
             </Link>

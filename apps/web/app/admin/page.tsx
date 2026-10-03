@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AdminGate from '@/components/admin/AdminGate';
+import AdminTabs from '@/components/admin/AdminTabs';
 import Icon from '@/components/Icon';
 import { deleteProduct, listProducts, type AdminProduct } from '@/lib/admin';
 import { rupees } from '@/lib/money';
@@ -135,5 +136,5 @@ function ProductsTable() {
 }
 
 export default function AdminPage() {
-  return <AdminGate><ProductsTable /></AdminGate>;
+  return <AdminGate><AdminTabs active="products" /><ProductsTable /></AdminGate>;
 }

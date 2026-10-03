@@ -79,4 +79,13 @@ public final class AdminDtos {
       @NotNull(message = "ids must be an array")
       @Size(max = 20, message = "ids must contain no more than 20 elements")
       List<@NotNull(message = "each value in ids must be an integer number") Integer> ids) {}
+
+  public record OrderStep(
+      @NotNull(message = "status must be a string") String status,
+      @JsonDeserialize(using = Trim.class)
+      @Size(max = 60, message = "carrier must be shorter than or equal to 60 characters")
+      String carrier,
+      @JsonDeserialize(using = Trim.class)
+      @Size(max = 80, message = "trackingNumber must be shorter than or equal to 80 characters")
+      String trackingNumber) {}
 }

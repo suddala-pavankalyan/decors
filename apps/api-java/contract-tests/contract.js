@@ -517,6 +517,62 @@ async function main() {
     check('orders need login', r.status === 401);
     r = await buyer.get('/orders/nope');
     check('unknown order → 404', r.status === 404);
+
+    // ───── order tracking & admin order management ─────
+    section('order tracking');
+    r = await buyer.get(`/orders/${co.orderId}`);
+    check('timeline starts with placed → paid', r.json.events?.map((e) => e.status).join() === 'PENDING,PAID' && r.json.events[0].note === 'Order placed' && r.json.carrier === null, r.json.events);
+    r = await buyer.get('/admin/orders');
+    check('admin orders need admin', r.status === 403);
+    r = await anon.get('/admin/orders');
+    check('admin orders need login', r.status === 401);
+    r = await alice2.get('/admin/orders?status=NOPE');
+    check('bad status filter → 400', r.status === 400, r.text);
+    r = await alice2.get(`/admin/orders?q=${encodeURIComponent(buyerEmail)}`);
+    check('admin search by customer email', r.status === 200 && r.json.total === 3 && r.json.items[0].customerEmail === buyerEmail && r.json.items[0].id === co2.orderId, r.text.slice(0, 300));
+    r = await alice2.get(`/admin/orders?status=PAID&q=${encodeURIComponent(buyerEmail)}`);
+    check('admin filter by status', r.json.total === 2 && r.json.items.every((o) => o.status === 'PAID'), r.text.slice(0, 200));
+    check('status counts', typeof r.json.counts.PAID === 'number' && r.json.counts.PAID >= 2 && 'DELIVERED' in r.json.counts, r.json.counts);
+    r = await alice2.get(`/admin/orders?q=${co.orderId}`);
+    check('admin search by order id', r.json.total === 1 && r.json.items[0].id === co.orderId);
+    r = await alice2.get(`/admin/orders/${co.orderId}`);
+    check('admin detail has customer and next step', r.status === 200 && r.json.customer.email === buyerEmail && r.json.nextStatus === 'PACKED' && r.json.events.length === 2, r.text.slice(0, 300));
+    r = await alice2.get('/admin/orders/nope');
+    check('admin detail unknown → 404', r.status === 404);
+
+    const pending = (await alice2.get(`/admin/orders?status=PENDING&q=${encodeURIComponent(buyerEmail)}`)).json.items[0];
+    r = await alice2.post(`/admin/orders/${pending.id}/status`, { status: 'PACKED' });
+    check('cannot pack an unpaid order', r.status === 409 && /not been paid/.test(r.json.message), r.text);
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'SHIPPED' });
+    check('cannot skip a step', r.status === 409 && /next step .* packed/.test(r.json.message), r.text);
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'sideways' });
+    check('unknown step → 400', r.status === 400, r.text);
+    r = await buyer.post(`/admin/orders/${co.orderId}/status`, { status: 'PACKED' });
+    check('customers cannot change status', r.status === 403);
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'PACKED' });
+    check('pack', r.status === 200 && r.json.status === 'PACKED' && r.json.nextStatus === 'SHIPPED' && r.json.events.at(-1).note === 'Packed and ready to ship', r.text.slice(0, 300));
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'PACKED' });
+    check('same step twice → 409', r.status === 409);
+    const mailsBefore = mails.length;
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'SHIPPED', carrier: ' Delhivery ', trackingNumber: ' DL123456 ' });
+    check('ship with tracking', r.status === 200 && r.json.status === 'SHIPPED' && r.json.carrier === 'Delhivery' && r.json.trackingNumber === 'DL123456' && /Delhivery.*DL123456/.test(r.json.events.at(-1).note), r.text.slice(0, 300));
+    const shipMail = await mailTo(buyerEmail, 'has shipped', mailsBefore);
+    check('shipping email sent with tracking', !!shipMail && /DL123456/.test(shipMail) && new RegExp(`/orders/${co.orderId}`).test(shipMail));
+    r = await buyer.get(`/orders/${co.orderId}`);
+    check('customer sees shipment and timeline', r.json.status === 'SHIPPED' && r.json.carrier === 'Delhivery' && r.json.events.map((e) => e.status).join() === 'PENDING,PAID,PACKED,SHIPPED', r.json.events);
+    raw = event('order.paid', co.razorpayOrderId, `pay_${RUN}`, co.amount);
+    r = await hook(raw, hmac(WEBHOOK_SECRET, raw));
+    check('late webhook replay does not move a shipped order back', r.status === 200);
+    r = await buyer.get(`/orders/${co.orderId}`);
+    check('still shipped after replay', r.json.status === 'SHIPPED' && r.json.events.length === 4, r.json.status);
+    const mailsBefore2 = mails.length;
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'DELIVERED', carrier: 'ignored' });
+    check('deliver', r.status === 200 && r.json.status === 'DELIVERED' && r.json.nextStatus === null && r.json.carrier === 'Delhivery', r.text.slice(0, 200));
+    check('delivery email sent', !!(await mailTo(buyerEmail, 'has been delivered', mailsBefore2)));
+    r = await alice2.post(`/admin/orders/${co.orderId}/status`, { status: 'DELIVERED' });
+    check('delivered is final', r.status === 409 && /already delivered/.test(r.json.message), r.text);
+    r = await alice2.get(`/admin/orders?status=DELIVERED&q=${co.orderId}`);
+    check('delivered filter', r.json.total === 1);
   }
 
   // ───────────────────────── rate limits ─────────────────────────
