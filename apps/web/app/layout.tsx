@@ -33,6 +33,13 @@ const script = localFont({
   variable: '--font-script',
   preload: false,
 });
+const cursive = localFont({
+  src: './fonts/DancingScript-Latin.woff2',
+  weight: '400 700',
+  display: 'swap',
+  variable: '--font-cursive',
+  preload: false,
+});
 const serif = localFont({
   src: [
     { path: './fonts/CormorantGaramond-Latin.woff2', weight: '300 700', style: 'normal' },
@@ -50,7 +57,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${figtree.variable} ${figtreeExt.variable} ${script.variable} ${serif.variable}`}>
+    <html lang="en" className={`${figtree.variable} ${figtreeExt.variable} ${script.variable} ${serif.variable} ${cursive.variable}`}>
       <body className="font-sans antialiased">
         <Header />
         <VerifyBanner />

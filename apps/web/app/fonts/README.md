@@ -10,3 +10,5 @@ The fonts are bundled with the app, so builds never need internet access and vis
 ## Wedding-card section
 
 `GreatVibes-Latin.woff2` (script, for names) and `CormorantGaramond-Latin.woff2` / `CormorantGaramond-Italic-Latin.woff2` (serif, for headings) are used only by the wedding-card section on the home page (`font-script`, `font-display`). Both are under the SIL Open Font License (`Wedding-Fonts-OFL.txt`) and come from the `@fontsource` packages.
+
+`DancingScript-Latin.woff2` (`font-cursive`, weights 400-700) is the heavier cursive for the section's label and the design name; also SIL Open Font License.
