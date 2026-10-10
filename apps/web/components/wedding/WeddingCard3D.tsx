@@ -108,7 +108,7 @@ export default function WeddingCard3D({
                 </p>
                 <Divider colour={GOLD} />
                 <p className="font-display text-lg italic" style={{ color: ink }}>{n1} &amp; {n2}</p>
-                {date && <p className="mt-2 font-display text-[11px] uppercase tracking-[0.3em] opacity-90">{longDate(date).split(', ').slice(1).join(', ')}</p>}
+                {date && <p className="mt-2 font-display text-[11px] uppercase tracking-[0.3em] opacity-90">{new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
               </div>
             </div>
 

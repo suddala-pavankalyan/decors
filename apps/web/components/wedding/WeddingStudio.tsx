@@ -101,18 +101,8 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
               Choose a design, open the card and imagine your names on it. Add your details on the next page, see a live preview, and we print it for you.
             </p>
 
-            <ol className="mt-8 grid max-w-xl gap-4" aria-label="How it works">
-              {([['Pick a design', 'Browse the cards on the right. The whole page takes on the colours of the one you choose.'],
-                 ['Add your details', 'Your names, wedding date and venue, typed on the next page.'],
-                 ['See it, then order', 'A live preview of your card before anything is printed.']] as const).map(([t, text], n) => (
-                <li key={t} className="flex items-start gap-3">
-                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-semibold text-white">{n + 1}</span>
-                  <p className="text-slate-600"><span className="block font-semibold text-slate-900">{t}</span>{text}</p>
-                </li>
-              ))}
-            </ol>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link href={href} className="group inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
                 Personalise this card
                 <Icon name="back" size={16} className="rotate-180 transition group-hover:translate-x-1" />
