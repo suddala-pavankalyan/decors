@@ -166,8 +166,10 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
                 className="inline-flex items-center gap-2 rounded-full border border-[color:var(--a-line)] bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[color:var(--a)]">
                 <Icon name="back" size={14} className={flipped ? '' : 'rotate-180'} />{flipped ? 'Back to the cover' : 'Open the card'}
               </button>
-              {!turned && <span className="ml-3 hidden text-xs text-slate-500 sm:inline">or tap the card</span>}
             </div>
+            <p className={`mt-2 flex items-center gap-1.5 text-sm text-slate-500 ${turned ? '' : 'motion-safe:animate-pulse'}`}>
+              <Icon name="sparkle" size={14} tint="transparent" />Tap the card to {flipped ? 'turn it back' : 'turn it over'}
+            </p>
 
             <div className="mt-5 w-full max-w-md text-center" aria-live="polite">
               <p className="font-display text-2xl font-semibold text-slate-900">{d.name}</p>
