@@ -2,11 +2,12 @@ module.exports = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      // One family everywhere. `--font-inter` (set in app/layout.tsx) already ends with the backup fonts;
-      // the explicit list below is a second safety net.
+      // One family everywhere (Figtree; its rupee-sign file comes second), then the visitor's own UI font.
       fontFamily: {
-        sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['var(--font-figtree)', 'var(--font-figtree-ext)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
+      // Figtree reads heavier than Inter at the same weight, so the heaviest weights step down a notch.
+      fontWeight: { semibold: '600', bold: '650', extrabold: '700' },
       backgroundImage: {
         // Brand gradient: sunset orange -> magenta -> purple
         spectrum: 'linear-gradient(90deg,#fa7e1e,#d62976,#962fbf)',
