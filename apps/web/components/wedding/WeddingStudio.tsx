@@ -102,7 +102,37 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
             </p>
 
 
-            <div className="mt-9 flex flex-wrap items-center gap-3">
+            <div className="mt-9 w-full max-w-md">
+              <p className="mb-2 text-sm font-semibold text-slate-800">
+                Pick a design
+              </p>
+              <div className="flex w-fit max-w-full items-center gap-2">
+                <button type="button" aria-label="Previous design" onClick={() => choose(i - 1)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-300 bg-white/90 hover:border-[color:var(--a)]"><Icon name="back" size={16} /></button>
+                <div role="radiogroup" aria-label="Choose a design"
+                  className="relative flex min-w-0 snap-x gap-3 overflow-x-auto px-2 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); choose(i + 1, true); }
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); choose(i - 1, true); }
+                  }}>
+                  {designs.map((x, n) => (
+                    <button key={x.id} ref={(el) => { radios.current[n] = el; }} type="button" role="radio" aria-checked={n === i} tabIndex={n === i ? 0 : -1}
+                      aria-label={x.name} onClick={() => choose(n)}
+                      className={`shrink-0 snap-center rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--a)] ${n === i ? 'scale-105 bg-white shadow-lg ring-2 ring-slate-900' : 'opacity-80 hover:opacity-100 hover:-translate-y-0.5'}`}>
+                      <Thumb colour={x.color} letter={x.name.trim()[0]?.toUpperCase() ?? '·'} />
+                    </button>
+                  ))}
+                </div>
+                <button type="button" aria-label="Next design" onClick={() => choose(i + 1)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-300 bg-white/90 hover:border-[color:var(--a)]"><Icon name="back" size={16} className="rotate-180" /></button>
+              </div>
+              {/* Time until the next design, while the showcase is playing by itself */}
+              <div aria-hidden className="mt-1 h-0.5 w-40 overflow-hidden rounded-full bg-[color:var(--a-line)]">
+                {running && <motion.div key={i} className="h-full origin-left bg-[color:var(--a)]" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: ROTATE_MS / 1000, ease: 'linear' }} />}
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link href={href} className="group inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
                 Personalise this card
                 <Icon name="back" size={16} className="rotate-180 transition group-hover:translate-x-1" />
@@ -134,35 +164,6 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
               {d.reviewCount > 0 && <p className="mt-1 flex justify-center text-sm text-slate-600"><Stars rating={d.rating} count={d.reviewCount} size={14} /></p>}
             </div>
 
-            <div className="mt-6 w-full max-w-md">
-              <p className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-slate-800">
-                Pick a design
-              </p>
-              <div className="flex items-center gap-2">
-                <button type="button" aria-label="Previous design" onClick={() => choose(i - 1)}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-300 bg-white/90 hover:border-[color:var(--a)]"><Icon name="back" size={16} /></button>
-                <div role="radiogroup" aria-label="Choose a design"
-                  className="relative flex min-w-0 flex-1 snap-x gap-3 [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto overflow-x-auto px-2 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); choose(i + 1, true); }
-                    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); choose(i - 1, true); }
-                  }}>
-                  {designs.map((x, n) => (
-                    <button key={x.id} ref={(el) => { radios.current[n] = el; }} type="button" role="radio" aria-checked={n === i} tabIndex={n === i ? 0 : -1}
-                      aria-label={x.name} onClick={() => choose(n)}
-                      className={`shrink-0 snap-center rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--a)] ${n === i ? 'scale-105 bg-white shadow-lg ring-2 ring-slate-900' : 'opacity-80 hover:opacity-100 hover:-translate-y-0.5'}`}>
-                      <Thumb colour={x.color} letter={x.name.trim()[0]?.toUpperCase() ?? '·'} />
-                    </button>
-                  ))}
-                </div>
-                <button type="button" aria-label="Next design" onClick={() => choose(i + 1)}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-300 bg-white/90 hover:border-[color:var(--a)]"><Icon name="back" size={16} className="rotate-180" /></button>
-              </div>
-              {/* Time until the next design, while the showcase is playing by itself */}
-              <div aria-hidden className="mx-auto mt-1 h-0.5 w-40 overflow-hidden rounded-full bg-[color:var(--a-line)]">
-                {running && <motion.div key={i} className="h-full origin-left bg-[color:var(--a)]" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: ROTATE_MS / 1000, ease: 'linear' }} />}
-              </div>
-            </div>
           </div>
         </div>
       </div>
