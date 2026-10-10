@@ -106,7 +106,7 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
                 </span>{' '}printed
               </motion.span>
             </h2>
-            <motion.p {...rise(0.36)} className="mt-6 max-w-lg text-xl leading-relaxed text-slate-600 [text-wrap:balance]">
+            <motion.p {...rise(0.36)} className="mt-5 max-w-lg text-base leading-relaxed text-slate-600 [text-wrap:balance]">
               Choose a design, open the card and picture your names on it. Add your details on the next page and <span className="font-semibold text-slate-900">see a live preview</span> before we print.
             </motion.p>
 
