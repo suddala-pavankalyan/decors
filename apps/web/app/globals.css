@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply min-h-screen bg-gradient-to-br from-rose-50 via-amber-50 to-sky-50 text-slate-800; }
+body { @apply min-h-screen bg-white text-slate-800; }
 
 /*
  * Typography: a single family (Inter), with the "design" coming from context rather than from mixing fonts.
