@@ -7,6 +7,8 @@ module.exports = {
         sans: ['var(--font-figtree)', 'var(--font-figtree-ext)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
         // Wedding-card section only: names in a script, headings in a classic serif.
         script: ['var(--font-script)', 'cursive'],
+        // A heavier, friendlier cursive for the small labels and design names.
+        cursive: ['var(--font-cursive)', 'cursive'],
         display: ['var(--font-serif-display)', 'Georgia', 'serif'],
       },
       // Figtree reads heavier than Inter at the same weight, so the heaviest weights step down a notch.

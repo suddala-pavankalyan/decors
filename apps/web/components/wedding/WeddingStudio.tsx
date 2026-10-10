@@ -91,9 +91,7 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
         <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* Words and the little customiser */}
           <div>
-            <motion.p {...rise(0)} className="inline-flex items-center gap-3 font-display text-sm font-semibold uppercase tracking-[0.32em]" style={{ color: 'var(--a)' }}>
-              <span aria-hidden className="h-px w-10" style={{ background: 'var(--a)' }} />Wedding cards
-            </motion.p>
+            <motion.p {...rise(0)} className="font-cursive text-3xl font-bold" style={{ color: 'var(--a)' }}>Wedding Cards</motion.p>
             <h2 id="studio-h" className="mt-4 font-display text-[3.4rem] font-semibold leading-[0.98] tracking-tight text-slate-900 sm:text-7xl">
               <motion.span {...rise(0.1)} className="block">Your love story,</motion.span>
               <motion.span {...rise(0.22)} className="mt-1 block">
@@ -161,18 +159,12 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
                 label={`${d.name}: a sample wedding card`} />
             </div>
 
-            <div className="mt-5 flex h-9 items-center">
-              <button type="button" onClick={flip} aria-pressed={flipped}
-                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--a-line)] bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[color:var(--a)]">
-                <Icon name="back" size={14} className={flipped ? '' : 'rotate-180'} />{flipped ? 'Back to the cover' : 'Open the card'}
-              </button>
-            </div>
-            <p className={`mt-2 flex items-center gap-1.5 text-sm text-slate-500 ${turned ? '' : 'motion-safe:animate-pulse'}`}>
+            <p className={`mt-7 flex items-center gap-1.5 text-sm text-slate-500 ${turned ? '' : 'motion-safe:animate-pulse'}`}>
               <Icon name="sparkle" size={14} tint="transparent" />Tap the card to {flipped ? 'turn it back' : 'turn it over'}
             </p>
 
             <div className="mt-5 w-full max-w-md text-center" aria-live="polite">
-              <p className="font-display text-2xl font-semibold text-slate-900">{d.name}</p>
+              <p className="font-cursive text-4xl font-bold text-slate-900">{d.name}</p>
               {d.reviewCount > 0 && <p className="mt-1 flex justify-center text-sm text-slate-600"><Stars rating={d.rating} count={d.reviewCount} size={14} /></p>}
             </div>
 
