@@ -1,6 +1,6 @@
 'use client';
-import { useRef } from 'react';
-import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
+import { useEffect, useRef } from 'react';
+import { motion, useAnimationControls, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { inkOn, shade } from '@/lib/color';
 import { longDate } from '@/lib/personalize';
 
@@ -43,6 +43,8 @@ export default function WeddingCard3D({
   accent, one, two, date, venue, flipped, onFlip, label, swapKey,
 }: { accent: string; one: string; two: string; date: string; venue: string; flipped: boolean; onFlip: () => void; label: string; swapKey: string }) {
   const reduce = useReducedMotion();
+  const swap = useAnimationControls();
+  const first = useRef(true);
   const ref = useRef<HTMLDivElement>(null);
   const px = useMotionValue(0);
   const py = useMotionValue(0);
@@ -51,6 +53,14 @@ export default function WeddingCard3D({
   const gx = useTransform(px, [-0.5, 0.5], [15, 85]);
   const gy = useTransform(py, [-0.5, 0.5], [10, 90]);
   const glare = useMotionTemplate`radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.42), transparent 48%)`;
+
+  // A new design swings in. The card element itself stays put, so a tap that lands as the design changes still counts.
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (reduce) return;
+    swap.set({ opacity: 0, rotateY: -28, scale: 0.94 });
+    swap.start({ opacity: 1, rotateY: 0, scale: 1, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } });
+  }, [swapKey, reduce, swap]);
 
   const dark = shade(accent, -0.5);
   const mid = shade(accent, -0.22);
@@ -71,13 +81,7 @@ export default function WeddingCard3D({
     <div className="relative [perspective:1400px]" onPointerMove={move} onPointerLeave={rest}>
       {/* Soft shadow on the "table" */}
       <div aria-hidden className="absolute -bottom-6 left-1/2 h-8 w-4/5 -translate-x-1/2 rounded-[50%] bg-black/25 blur-xl" />
-      <motion.div
-        key={swapKey}
-        initial={reduce ? false : { opacity: 0, rotateY: -28, scale: 0.94 }}
-        animate={{ opacity: 1, rotateY: 0, scale: 1 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        style={{ transformStyle: 'preserve-3d' }}
-      >
+      <motion.div animate={swap} style={{ transformStyle: 'preserve-3d' }}>
         <motion.div
           ref={ref}
           role="button"

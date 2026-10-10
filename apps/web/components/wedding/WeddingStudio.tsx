@@ -78,7 +78,7 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
 
   return (
     <section aria-labelledby="studio-h" className="mx-auto max-w-7xl px-4" style={theme}
-      onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+      onPointerDown={(e) => { if (e.pointerType !== 'mouse') setAuto(false); }} onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
       <div className="relative overflow-hidden rounded-[2rem] border border-[color:var(--a-line)] bg-[color:var(--a-tint)] transition-colors duration-700 px-5 py-12 shadow-xl shadow-black/5 sm:px-12 lg:py-16">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,255,255,0.35)_60%,rgba(255,255,255,0.7))]" />
         {/* Light behind the card, in the card's colour */}
