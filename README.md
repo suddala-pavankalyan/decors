@@ -67,7 +67,7 @@ Notes
   ```
 
 ## Typography
-One typeface for the whole site: **Inter** (bundled in `apps/web/app/fonts`, so builds work offline and visitors never contact a third party). If it can't load, the visitor's own system UI font takes over (Segoe UI on Windows, San Francisco on Apple devices, Roboto on Android), then plain sans-serif; a size-matched fallback keeps the page from jumping while Inter loads.
+One typeface for the whole site: **Figtree** (bundled in `apps/web/app/fonts`, so builds work offline and visitors never contact a third party). If it can't load, the visitor's own system UI font takes over (Segoe UI on Windows, San Francisco on Apple devices, Roboto on Android), then plain sans-serif; a size-matched fallback keeps the page from jumping while Figtree loads.
 
 The look changes with context through weight, size and spacing, not by mixing fonts (see the comment at the top of `apps/web/app/globals.css`):
 
