@@ -1,9 +1,10 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import PersonalizeEditor from '@/components/PersonalizeEditor';
 import { usePurchase } from '@/components/PurchaseProvider';
-import type { Personalization } from '@/lib/personalize';
+import { todayIso, type Personalization } from '@/lib/personalize';
 import { lineKey, maxFor, useStore } from '@/lib/store';
 
 /** "Make it yours" on a product page: type the details, watch the card change, add it to the cart. */
@@ -14,6 +15,12 @@ export default function PersonalizeSection() {
   const setQtyOf = useStore((s) => s.setQty);
   const setDetails = useStore((s) => s.setPersonalization);
   const line = useStore((s) => s.cart.find((l) => lineKey(l) === key));
+  const params = useSearchParams();
+  // Names and date typed into the home page's wedding-card section arrive in the link.
+  const fromLink: Personalization | null = params.get('n1') || params.get('n2') || params.get('d')
+    ? { partnerOne: (params.get('n1') ?? '').slice(0, 40), partnerTwo: (params.get('n2') ?? '').slice(0, 40), venue: '', note: '',
+        eventDate: (params.get('d') ?? '') >= todayIso() ? params.get('d') ?? '' : '' }
+    : null;
   const [qty, setQty] = useState('1');
   const [done, setDone] = useState(false);
   const max = maxFor({ stock });
@@ -43,7 +50,7 @@ export default function PersonalizeSection() {
         </label>
         <PersonalizeEditor
           key={`${key}-${line?.personalization ? 'saved' : 'new'}`}
-          initial={line?.personalization ?? null} accent={p.color} productName={p.name}
+          initial={line?.personalization ?? fromLink} accent={p.color} productName={p.name}
           submitLabel={line ? 'Update cart' : 'Add to cart'} onSubmit={submit}
         />
         {done && (

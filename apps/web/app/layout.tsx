@@ -25,6 +25,24 @@ const figtreeExt = localFont({
   preload: false,
 });
 
+// Two display faces, used only by the wedding-card section on the home page: a script for names, a serif for headings.
+const script = localFont({
+  src: './fonts/GreatVibes-Latin.woff2',
+  weight: '400',
+  display: 'swap',
+  variable: '--font-script',
+  preload: false,
+});
+const serif = localFont({
+  src: [
+    { path: './fonts/CormorantGaramond-Latin.woff2', weight: '300 700', style: 'normal' },
+    { path: './fonts/CormorantGaramond-Italic-Latin.woff2', weight: '300 700', style: 'italic' },
+  ],
+  display: 'swap',
+  variable: '--font-serif-display',
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: 'Decors — Cards, Gifts, Wall Decor & Paints',
   description: 'Wedding cards, gift cards, wall decor and paints in every colour.',
@@ -32,7 +50,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${figtree.variable} ${figtreeExt.variable}`}>
+    <html lang="en" className={`${figtree.variable} ${figtreeExt.variable} ${script.variable} ${serif.variable}`}>
       <body className="font-sans antialiased">
         <Header />
         <VerifyBanner />
