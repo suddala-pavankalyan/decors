@@ -1,3 +1,4 @@
+import { FOCUS_CATEGORY } from '@/lib/focus';
 export interface ProductImage { url: string; alt: string }
 export interface Product {
   id: string; name: string; category: string; price: number;
@@ -27,15 +28,18 @@ export interface Filters {
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+/** `?category=…` while the shop is focused on one category (see lib/focus.ts). */
+const focusQuery = FOCUS_CATEGORY ? `?category=${encodeURIComponent(FOCUS_CATEGORY)}` : '';
+
 export async function fetchFacets(): Promise<Facets> {
-  const r = await fetch(`${API}/products/facets`, { cache: 'no-store' });
+  const r = await fetch(`${API}/products/facets${focusQuery}`, { cache: 'no-store' });
   return r.json();
 }
 
 export const PAGE_SIZE = 24;
 
 export async function fetchOverview(): Promise<Overview> {
-  const r = await fetch(`${API}/products/overview`, { cache: 'no-store' });
+  const r = await fetch(`${API}/products/overview${focusQuery}`, { cache: 'no-store' });
   if (!r.ok) throw new Error('Failed to load the overview');
   return r.json();
 }
@@ -47,7 +51,9 @@ export async function fetchProducts(
 ): Promise<ProductPage> {
   const p = new URLSearchParams();
   if (f.q.trim()) p.set('q', f.q.trim());
-  if (f.categories.length) p.set('categories', f.categories.join(','));
+  // While the shop is focused on one category, that is the only one it ever asks for.
+  if (FOCUS_CATEGORY) p.set('categories', FOCUS_CATEGORY);
+  else if (f.categories.length) p.set('categories', f.categories.join(','));
   if (f.colors.length) p.set('colors', f.colors.join(','));
   if (f.tags.length) p.set('tags', f.tags.join(','));
   if (f.maxPrice > 0) p.set('maxPrice', String(f.maxPrice));

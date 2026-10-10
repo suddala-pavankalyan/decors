@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,13 +27,13 @@ public class ProductController {
   }
 
   @GetMapping("/facets")
-  public Facets facets() {
-    return products.facets();
+  public Facets facets(@RequestParam(required = false) String category) {
+    return products.facets(category);
   }
 
   @GetMapping("/overview")
-  public Overview overview() {
-    return products.overview();
+  public Overview overview(@RequestParam(required = false) String category) {
+    return products.overview(category);
   }
 
   @GetMapping("/{id}")

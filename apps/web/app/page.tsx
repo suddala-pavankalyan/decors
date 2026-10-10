@@ -4,6 +4,7 @@ import ExhibitCard from '@/components/landing/ExhibitCard';
 import HeroSearch from '@/components/landing/HeroSearch';
 import Reveal from '@/components/landing/Reveal';
 import WeddingStudio from '@/components/wedding/WeddingStudio';
+import { FOCUS_CATEGORY } from '@/lib/focus';
 import { fetchOverview, fetchProducts, type Overview, type Product } from '@/lib/api';
 
 // Always show the current catalog (products change in the admin area).
@@ -58,6 +59,9 @@ export default async function Home() {
       <WeddingStudio designs={designs} />
       <div className="mt-12" />
 
+      {/* The general entrance and the four halls are kept for when the shop shows every category again. */}
+      {!FOCUS_CATEGORY && (
+        <>
       {/* ── Entrance ─────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4">
         <div className="grid grid-cols-1 items-center gap-10 rounded-[2rem] border border-orange-100 bg-white px-6 py-12 shadow-xl shadow-fuchsia-900/5 sm:px-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:py-16">
@@ -93,6 +97,11 @@ export default async function Home() {
         </div>
       </section>
 
+        </>
+      )}
+
+      {!FOCUS_CATEGORY && (
+        <>
       {/* ── The halls ────────────────────────────────────────────── */}
       <section className="mx-auto mt-20 max-w-7xl px-4" aria-labelledby="halls">
         <Reveal>
@@ -127,6 +136,9 @@ export default async function Home() {
           })}
         </div>
       </section>
+
+        </>
+      )}
 
       {/* ── Now showing ──────────────────────────────────────────── */}
       {featured.length > 0 && (

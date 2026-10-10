@@ -171,36 +171,67 @@ public class ProductService {
   }
 
   public Facets facets() {
-    // Only colours and tags that at least one product uses (deleted products can leave them behind).
-    List<NamedColor> c = colors.findInUse().stream().map(x -> new NamedColor(x.name, x.hex)).toList();
-    List<String> t = tags.findInUse().stream().map(x -> x.name).toList();
-    Integer max = products.maxPrice();
-    return new Facets(Category.slugs(), c, t, max == null ? 0 : max);
+    return facets(null);
+  }
+
+  /** Filter options; with a category, only what that category's products use (an unknown category has none). */
+  public Facets facets(String category) {
+    if (category == null || category.isBlank()) {
+      // Only colours and tags that at least one product uses (deleted products can leave them behind).
+      List<NamedColor> c = colors.findInUse().stream().map(x -> new NamedColor(x.name, x.hex)).toList();
+      List<String> t = tags.findInUse().stream().map(x -> x.name).toList();
+      Integer max = products.maxPrice();
+      return new Facets(Category.slugs(), c, t, max == null ? 0 : max);
+    }
+    Category cat = Category.fromSlug(category).orElse(null);
+    if (cat == null) return new Facets(List.of(), List.of(), List.of(), 0);
+    List<NamedColor> c = jdbc.sql("""
+            select c.name, c.hex from "Color" c
+            where exists (select 1 from "Product" p where p."colorId" = c.id and p.category::text = :cat) order by c.id
+            """).param("cat", cat.name()).query((rs, n) -> new NamedColor(rs.getString(1), rs.getString(2))).list();
+    List<String> t = jdbc.sql("""
+            select t.name from "Tag" t
+            where exists (select 1 from "_ProductToTag" j join "Product" p on p.id = j."A" where j."B" = t.id and p.category::text = :cat)
+            order by t.name
+            """).param("cat", cat.name()).query(String.class).list();
+    Integer max = jdbc.sql("select max(price) from \"Product\" where category::text = :cat").param("cat", cat.name())
+        .query((rs, n) -> rs.getObject(1) == null ? null : rs.getInt(1)).optional().orElse(null);
+    return new Facets(List.of(cat.slug()), c, t, max == null ? 0 : max);
+  }
+
+  public Overview overview() {
+    return overview(null);
   }
 
   /**
    * Everything the landing page needs in one request, computed in the database
-   * (counts and colours per category, top-rated pieces, popular tags).
+   * (counts and colours per category, top-rated pieces, popular tags). With a category, only that one.
    */
-  public Overview overview() {
-    Facets facets = facets();
+  public Overview overview(String category) {
+    Category only = category == null || category.isBlank() ? null : Category.fromSlug(category).orElse(null);
+    boolean unknown = category != null && !category.isBlank() && only == null;
+    Facets facets = facets(category);
     Map<Integer, String> hexById = colors.findAll().stream().collect(Collectors.toMap(x -> x.id, x -> x.hex));
     Map<Category, Map<Integer, Long>> counts = new LinkedHashMap<>();
     for (Object[] row : products.countsByCategoryAndColor()) {
       counts.computeIfAbsent((Category) row[0], k -> new LinkedHashMap<>()).put((Integer) row[1], (Long) row[2]);
     }
-    List<Hall> halls = Arrays.stream(Category.values()).map(cat -> {
+    List<Hall> halls = Arrays.stream(Category.values()).filter(cat -> only == null ? !unknown : cat == only).map(cat -> {
       Map<Integer, Long> perColor = counts.getOrDefault(cat, Map.of());
       List<String> hexes = perColor.entrySet().stream()
           .sorted(Map.Entry.<Integer, Long>comparingByValue().reversed())
           .limit(6).map(e -> hexById.get(e.getKey())).filter(java.util.Objects::nonNull).toList();
       return new Hall(cat.slug(), perColor.values().stream().mapToLong(Long::longValue).sum(), hexes);
     }).toList();
-    var featured = products.findAll(PageRequest.of(0, 6, Sort.by(Sort.Order.desc("rating"), Sort.Order.asc("id")))).getContent();
-    List<String> popular = jdbc.sql("""
-            select t.name from "Tag" t join "_ProductToTag" j on j."B" = t.id
+    var top = PageRequest.of(0, 6, Sort.by(Sort.Order.desc("rating"), Sort.Order.asc("id")));
+    List<Product> featured = unknown ? List.of()
+        : only == null ? products.findAll(top).getContent()
+        : products.findAll((root, q, cb) -> cb.equal(root.get("category"), only), top).getContent();
+    List<String> popular = unknown ? List.of() : jdbc.sql("""
+            select t.name from "Tag" t join "_ProductToTag" j on j."B" = t.id join "Product" p on p.id = j."A"
+            where (cast(:cat as text) is null or p.category::text = cast(:cat as text))
             group by t.id, t.name order by count(*) desc, t.name asc limit 5
-            """).query(String.class).list();
+            """).param("cat", only == null ? null : only.name()).query(String.class).list();
     return new Overview(halls, views.summaries(featured), popular, facets.colors(), facets.tags());
   }
 

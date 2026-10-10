@@ -74,7 +74,7 @@ export default function SearchBox({
           ref={input}
           type="search"
           aria-label="Search products"
-          placeholder="Search cards, decor, paints…"
+          placeholder={facets.categories.length === 1 ? `Search ${facets.categories[0].replace('-', ' ')}…` : 'Search cards, decor, paints…'}
           value={filters.q}
           onFocus={() => setOpen(true)}
           onChange={(e) => { onChange({ ...filters, q: e.target.value }); setOpen(true); }}
@@ -133,6 +133,7 @@ export default function SearchBox({
             )}
 
             <section aria-label="Quick filters" className="space-y-4">
+              {facets.categories.length > 1 && (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Browse by category</h4>
                 <div className="flex flex-wrap gap-2">
@@ -144,6 +145,7 @@ export default function SearchBox({
                   ))}
                 </div>
               </div>
+              )}
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Occasion &amp; style</h4>
                 <div className="flex flex-wrap gap-2">

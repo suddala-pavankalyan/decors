@@ -1435,6 +1435,19 @@ async function main() {
     r = await anon.get(`/products?q=${'x'.repeat(50)}%20${SW}`);
     check('long odd queries do not break', r.status === 200);
 
+    section('category focus');
+    r = await anon.get('/products/facets?category=wedding-cards');
+    const allF = (await anon.get('/products/facets')).json;
+    check('facets can be limited to one category', r.status === 200 && r.json.categories.length === 1 && r.json.categories[0] === 'wedding-cards' && r.json.colors.length > 0 && r.json.colors.length <= allF.colors.length && r.json.tags.length <= allF.tags.length && r.json.maxPrice > 0 && r.json.maxPrice <= allF.maxPrice, r.text.slice(0, 200));
+    const wcItems = (await anon.get('/products?categories=wedding-cards&limit=60')).json.items;
+    check('limited facets use only that category\'s colours', r.json.colors.every((c) => wcItems.some((i) => i.colorName === c.name)) && r.json.maxPrice === Math.max(...wcItems.map((i) => i.price)), r.text.slice(0, 200));
+    r = await anon.get('/products/overview?category=wedding-cards');
+    check('overview can be limited to one category', r.status === 200 && r.json.halls.length === 1 && r.json.halls[0].category === 'wedding-cards' && r.json.featured.length > 0 && r.json.featured.every((p) => p.category === 'wedding-cards'), r.text.slice(0, 200));
+    r = await anon.get('/products/overview?category=nope');
+    check('unknown category: nothing, not everything', r.status === 200 && r.json.halls.length === 0 && r.json.featured.length === 0 && r.json.colors.length === 0, r.text.slice(0, 200));
+    r = await anon.get('/products/overview');
+    check('without a category the overview is unchanged', r.json.halls.length === 4);
+
     section('invoices');
     const { execFileSync } = require('child_process');
     const pdfText = (buf) => { try { return execFileSync('pdftotext', ['-layout', '-', '-'], { input: buf }).toString(); } catch { return null; } };

@@ -23,6 +23,7 @@ export default function FilterSidebar({
 }: { facets: Facets; filters: Filters; onChange: (f: Filters) => void }) {
   return (
     <aside className="space-y-6 rounded-3xl bg-white/70 p-5 shadow backdrop-blur">
+      {facets.categories.length > 1 && (
       <section>
         <h4 className="mb-2 font-semibold">Category</h4>
         <div className="flex flex-wrap gap-2">
@@ -34,6 +35,7 @@ export default function FilterSidebar({
           ))}
         </div>
       </section>
+      )}
       <section>
         <h4 className="mb-2 font-semibold">Colour</h4>
         <div className="flex flex-wrap gap-2">

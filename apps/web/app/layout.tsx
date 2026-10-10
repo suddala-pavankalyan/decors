@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
+import { FOCUS_CATEGORY } from '@/lib/focus';
 import Header from '@/components/Header';
 import VerifyBanner from '@/components/VerifyBanner';
 
@@ -51,8 +52,8 @@ const serif = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'Decors — Cards, Gifts, Wall Decor & Paints',
-  description: 'Wedding cards, gift cards, wall decor and paints in every colour.',
+  title: FOCUS_CATEGORY ? 'Decors — Wedding Cards' : 'Decors — Cards, Gifts, Wall Decor & Paints',
+  description: FOCUS_CATEGORY ? 'Beautiful wedding cards you can personalise with your names, date and venue.' : 'Wedding cards, gift cards, wall decor and paints in every colour.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

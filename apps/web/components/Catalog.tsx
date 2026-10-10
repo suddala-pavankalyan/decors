@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   fetchFacets, fetchProducts, type Facets, type Filters, type Product, type ProductPage,
 } from '@/lib/api';
+import { FOCUS_CATEGORY } from '@/lib/focus';
 import { filtersFromParams, filtersToQuery } from '@/lib/filters';
 import Dropdown, { type Option } from './Dropdown';
 import FilterSidebar from './FilterSidebar';
@@ -141,7 +142,7 @@ export default function Catalog({ initialFacets, initialPage, initialFilters }: 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16">
     <div className="mb-6">
-      <h1 className="text-4xl font-extrabold">The <span className="text-spectrum">collection</span></h1>
+      <h1 className="text-4xl font-extrabold">{FOCUS_CATEGORY ? <>Wedding <span className="text-spectrum">cards</span></> : <>The <span className="text-spectrum">collection</span></>}</h1>
       <p className="mt-1 text-slate-500" aria-live="polite">
         {total} piece{total === 1 ? '' : 's'}{filters.q.trim() ? <> for “{corrected ?? filters.q.trim()}”</> : null}
       </p>

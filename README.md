@@ -52,6 +52,9 @@ Notes
 - Set `API_PUBLIC_URL` (API) and `NEXT_PUBLIC_API_URL` (web) to the API's public address when deploying.
 - Deleting a product removes it from carts and wishlists; past orders keep their item name and price.
 
+## Focus on one category
+For now the shop shows **wedding cards only**: the home page, the shop and its filters, search suggestions and product pages leave out every other category. Nothing is deleted; the other products stay in the database and in the admin area. The API takes an optional `category` on `/products/facets` and `/products/overview`, and the web app asks for it. To show everything again, set `NEXT_PUBLIC_FOCUS_CATEGORY=all` for the web app (or set another category slug such as `paints`) and restart it.
+
 ## Pages
 - `/` — the exhibition landing page: search (press Enter to open the results), the four category halls, the top-rated pieces, a colour wall and occasions.
 - `/shop` — the full collection with search, filters and sorting. Filters live in the URL (for example `/shop?categories=paints&sort=price-asc`), so results can be shared and survive a reload.

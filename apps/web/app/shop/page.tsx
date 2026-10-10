@@ -2,11 +2,12 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Catalog from '@/components/Catalog';
 import { fetchFacets, fetchProducts, type Facets, type ProductPage } from '@/lib/api';
+import { FOCUS_CATEGORY } from '@/lib/focus';
 import { filtersFromParams } from '@/lib/filters';
 
 export const metadata: Metadata = {
   title: 'Shop — Decors',
-  description: 'Browse wedding cards, gift cards, wall decor and paints. Filter by colour, occasion and style.',
+  description: FOCUS_CATEGORY ? 'Browse wedding cards and personalise one with your names, date and venue.' : 'Browse wedding cards, gift cards, wall decor and paints. Filter by colour, occasion and style.',
 };
 
 // Results depend on the URL, so render per request.

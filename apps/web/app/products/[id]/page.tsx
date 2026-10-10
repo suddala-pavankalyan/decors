@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import WishButton from '@/components/WishButton';
 import Gallery from '@/components/Gallery';
 import ProductCard from '@/components/ProductCard';
+import { FOCUS_CATEGORY } from '@/lib/focus';
 import { fetchProduct } from '@/lib/api';
 import Icon from '@/components/Icon';
 import Reviews from '@/components/Reviews';
@@ -16,12 +17,13 @@ type Props = { params: { id: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await fetchProduct(params.id);
-  return p ? { title: `${p.name} — Decors`, description: p.description } : { title: 'Not found — Decors' };
+  return p && (!FOCUS_CATEGORY || p.category === FOCUS_CATEGORY) ? { title: `${p.name} — Decors`, description: p.description } : { title: 'Not found — Decors' };
 }
 
 export default async function ProductPage({ params }: Props) {
   const p = await fetchProduct(params.id);
-  if (!p) notFound();
+  // While the shop is focused on one category, products from the others are not shown.
+  if (!p || (FOCUS_CATEGORY && p.category !== FOCUS_CATEGORY)) notFound();
 
   return (
     <PurchaseProvider product={p}>
