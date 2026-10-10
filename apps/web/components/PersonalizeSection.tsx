@@ -17,8 +17,8 @@ export default function PersonalizeSection() {
   const line = useStore((s) => s.cart.find((l) => lineKey(l) === key));
   const params = useSearchParams();
   // Names and date typed into the home page's wedding-card section arrive in the link.
-  const fromLink: Personalization | null = params.get('n1') || params.get('n2') || params.get('d')
-    ? { partnerOne: (params.get('n1') ?? '').slice(0, 40), partnerTwo: (params.get('n2') ?? '').slice(0, 40), venue: '', note: '',
+  const fromLink: Personalization | null = params.get('n1') || params.get('n2') || params.get('d') || params.get('v')
+    ? { partnerOne: (params.get('n1') ?? '').slice(0, 40), partnerTwo: (params.get('n2') ?? '').slice(0, 40), venue: (params.get('v') ?? '').slice(0, 120), note: '',
         eventDate: (params.get('d') ?? '') >= todayIso() ? params.get('d') ?? '' : '' }
     : null;
   const [qty, setQty] = useState('1');
