@@ -79,12 +79,8 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
   return (
     <section aria-labelledby="studio-h" className="mx-auto max-w-7xl px-4" style={theme}
       onPointerDown={(e) => { if (e.pointerType !== 'mouse') setAuto(false); }} onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-      <div className="relative overflow-hidden rounded-[2rem] border border-[color:var(--a-line)] bg-[color:var(--a-tint)] transition-colors duration-700 px-5 py-12 shadow-xl shadow-black/5 sm:px-12 lg:py-16">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.85),rgba(255,255,255,0.35)_60%,rgba(255,255,255,0.7))]" />
-        {/* Light behind the card, in the card's colour */}
-        <div aria-hidden className="pointer-events-none absolute -right-24 top-1/2 h-[34rem] w-[34rem] -translate-y-1/2 rounded-full opacity-40 blur-3xl transition-colors duration-700 motion-safe:animate-drift" style={{ background: d.color }} />
-        <div aria-hidden className="pointer-events-none absolute -left-32 bottom-0 h-96 w-96 rounded-full opacity-25 blur-3xl transition-colors duration-700 motion-safe:animate-drift" style={{ background: shade(d.color, 0.35) }} />
-        <Petals colours={[shade(d.color, 0.6), shade(d.color, 0.35), shade(d.color, 0.78)]} />
+      <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white px-5 py-12 shadow-xl shadow-black/5 sm:px-12 lg:py-16">
+        <Petals colours={[shade(d.color, 0.4), shade(d.color, 0.15), shade(d.color, 0.6)]} />
 
         <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* Words and the little customiser */}
