@@ -33,25 +33,24 @@ export default function Header() {
   useEffect(() => { init(); }, [init]);
   return (
     <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-      <Link href="/" className="flex shrink-0 items-center gap-2.5 text-xl font-extrabold tracking-tight">
-        <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-xl bg-spectrum text-base text-white shadow-md shadow-fuchsia-500/30">D</span>
+      <Link href="/" className="shrink-0 text-xl font-extrabold tracking-tight">
         Decors
       </Link>
       <div className="flex items-center gap-4 text-sm font-medium sm:gap-6">
         <Link href="/shop" className="hover:text-fuchsia-600">Shop</Link>
         <Link href="/wishlist" aria-label="Wishlist" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
-          <span className="relative"><Icon name="heart" size={20} /><Badge n={hydrated ? wishCount : 0} /></span>
+          <span className="relative"><Icon name="heart" size={20} tint="transparent" /><Badge n={hydrated ? wishCount : 0} /></span>
           <span className="hidden sm:inline">Wishlist</span>
         </Link>
         <Link href="/cart" aria-label="Cart" className="inline-flex items-center gap-1.5 hover:text-fuchsia-600">
-          <span className="relative"><Icon name="bag" size={20} /><Badge n={hydrated ? cartCount : 0} /></span>
+          <span className="relative"><Icon name="bag" size={20} tint="transparent" /><Badge n={hydrated ? cartCount : 0} /></span>
           <span className="hidden sm:inline">Cart</span>
         </Link>
         {!ready && <span aria-hidden className="h-9 w-24 animate-pulse rounded-full bg-slate-200/70" />}
         {ready && (user ? (
           <UserMenu user={user} />
         ) : (
-          <Link href="/login" className="whitespace-nowrap rounded-full bg-spectrum px-4 py-1.5 font-semibold text-white shadow-md shadow-fuchsia-500/25 transition hover:scale-105">Log in</Link>
+          <Link href="/login" className="whitespace-nowrap rounded-full bg-slate-900 px-4 py-1.5 font-semibold text-white transition hover:bg-slate-700">Log in</Link>
         ))}
       </div>
     </nav>
