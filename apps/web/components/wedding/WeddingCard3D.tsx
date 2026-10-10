@@ -78,18 +78,18 @@ export default function WeddingCard3D({
   const n2 = two.trim() || 'Second';
 
   return (
-    <div className="relative [perspective:1400px]" onPointerMove={move} onPointerLeave={rest}>
+    // The flat outer box takes the click, tap or key press, so it counts wherever on the tilted card it lands.
+    <div role="button" tabIndex={0} data-card
+      aria-label={`${label}. ${flipped ? 'Showing the inside' : 'Showing the cover'}. Press to turn it over.`}
+      onClick={onFlip} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFlip(); } }}
+      className="relative mx-auto w-fit cursor-pointer rounded-md outline-none [perspective:1400px] focus-visible:ring-4 focus-visible:ring-amber-300"
+      onPointerMove={move} onPointerLeave={rest}>
       {/* Soft shadow on the "table" */}
       <div aria-hidden className="absolute -bottom-6 left-1/2 h-8 w-4/5 -translate-x-1/2 rounded-[50%] bg-black/25 blur-xl" />
       <motion.div animate={swap} style={{ transformStyle: 'preserve-3d' }}>
         <motion.div
           ref={ref}
-          role="button"
-          tabIndex={0}
-          aria-label={`${label}. ${flipped ? 'Showing the inside' : 'Showing the cover'}. Press to turn it over.`}
-          onClick={onFlip}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFlip(); } }}
-          className="relative mx-auto aspect-[5/7] w-[min(74vw,19rem)] cursor-pointer rounded-md outline-none focus-visible:ring-4 focus-visible:ring-amber-300 sm:w-80"
+          className="relative mx-auto aspect-[5/7] w-[min(74vw,19rem)] sm:w-80"
           style={{ rotateX: reduce ? 0 : rx, rotateY: reduce ? 0 : ry, transformStyle: 'preserve-3d' }}
           animate={reduce ? undefined : { y: [0, -10, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}

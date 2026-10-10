@@ -41,6 +41,12 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
     t.setDate(t.getDate() + ((6 - t.getDay() + 7) % 7));
     setDate(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`);
   }, []);
+  // Words rise into place one after another (skipped for visitors who prefer reduced motion).
+  const rise = (delay: number) => ({
+    initial: reduce ? false : { opacity: 0, y: 18 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] as const },
+  });
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Show the next design every few seconds until the visitor takes over (or hovers / focuses inside).
@@ -79,24 +85,32 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
   return (
     <section aria-labelledby="studio-h" className="mx-auto max-w-7xl px-4" style={theme}
       onPointerDown={(e) => { if (e.pointerType !== 'mouse') setAuto(false); }} onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-      <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white px-5 py-12 shadow-xl shadow-black/5 sm:px-12 lg:py-16">
+      <div className="relative overflow-hidden rounded-[2rem] bg-white px-5 py-12 sm:px-12 lg:py-16">
         <Petals colours={[shade(d.color, 0.4), shade(d.color, 0.15), shade(d.color, 0.6)]} />
 
         <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* Words and the little customiser */}
           <div>
-            <p className="inline-flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-[0.3em]" style={{ color: 'var(--a)' }}>
-              <span aria-hidden className="h-px w-8" style={{ background: 'var(--a)' }} />Wedding cards
-            </p>
-            <h2 id="studio-h" className="mt-3 font-display text-5xl font-semibold leading-[1.02] tracking-normal text-slate-900 sm:text-6xl">
-              Your love story,<br />
-              <span className="font-script text-[1.15em] font-normal text-transparent bg-clip-text motion-safe:animate-gleam"
-                style={{ backgroundImage: `linear-gradient(90deg, ${deep}, ${shade(d.color, luminance(d.color) > 0.5 ? -0.3 : 0.05)}, ${deep})`, backgroundSize: '200% 100%' }}>beautifully</span> printed
+            <motion.p {...rise(0)} className="inline-flex items-center gap-3 font-display text-sm font-semibold uppercase tracking-[0.32em]" style={{ color: 'var(--a)' }}>
+              <span aria-hidden className="h-px w-10" style={{ background: 'var(--a)' }} />Wedding cards
+            </motion.p>
+            <h2 id="studio-h" className="mt-4 font-display text-[3.4rem] font-semibold leading-[0.98] tracking-tight text-slate-900 sm:text-7xl">
+              <motion.span {...rise(0.1)} className="block">Your love story,</motion.span>
+              <motion.span {...rise(0.22)} className="mt-1 block">
+                <span className="relative inline-block">
+                  <span className="font-script text-[1.12em] font-normal text-transparent bg-clip-text motion-safe:animate-gleam"
+                    style={{ backgroundImage: `linear-gradient(90deg, ${deep}, ${shade(d.color, luminance(d.color) > 0.5 ? -0.3 : 0.05)}, ${deep})`, backgroundSize: '200% 100%' }}>beautifully</span>
+                  {/* A hand-drawn swash that draws itself under the word */}
+                  <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="absolute -bottom-1 left-1 h-3.5 w-[96%]" fill="none">
+                    <motion.path d="M3 14C60 4 130 3 200 8c40 3 70 4 97 1" stroke="var(--a)" strokeWidth="2.2" strokeLinecap="round" opacity="0.7"
+                      initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.1, delay: 0.7, ease: 'easeOut' }} />
+                  </svg>
+                </span>{' '}printed
+              </motion.span>
             </h2>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-              Choose a design, open the card and imagine your names on it. Add your details on the next page, see a live preview, and we print it for you.
-            </p>
-
+            <motion.p {...rise(0.36)} className="mt-6 max-w-lg text-xl leading-relaxed text-slate-600 [text-wrap:balance]">
+              Choose a design, open the card and picture your names on it. Add your details on the next page and <span className="font-semibold text-slate-900">see a live preview</span> before we print.
+            </motion.p>
 
             <div className="mt-9 w-full max-w-md">
               <p className="mb-2 text-sm font-semibold text-slate-800">
@@ -152,8 +166,10 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
                 className="inline-flex items-center gap-2 rounded-full border border-[color:var(--a-line)] bg-white/90 px-4 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[color:var(--a)]">
                 <Icon name="back" size={14} className={flipped ? '' : 'rotate-180'} />{flipped ? 'Back to the cover' : 'Open the card'}
               </button>
-              {!turned && <span className="ml-3 hidden text-xs text-slate-500 sm:inline">or tap the card</span>}
             </div>
+            <p className={`mt-2 flex items-center gap-1.5 text-sm text-slate-500 ${turned ? '' : 'motion-safe:animate-pulse'}`}>
+              <Icon name="sparkle" size={14} tint="transparent" />Tap the card to {flipped ? 'turn it back' : 'turn it over'}
+            </p>
 
             <div className="mt-5 w-full max-w-md text-center" aria-live="polite">
               <p className="font-display text-2xl font-semibold text-slate-900">{d.name}</p>
