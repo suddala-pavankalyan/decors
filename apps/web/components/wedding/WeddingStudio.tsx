@@ -6,15 +6,10 @@ import Stars from '@/components/Stars';
 import Icon from '@/components/Icon';
 import type { Product } from '@/lib/api';
 import { luminance, shade } from '@/lib/color';
-import { rupees } from '@/lib/money';
-import { todayIso } from '@/lib/personalize';
 import Petals from './Petals';
 import WeddingCard3D from './WeddingCard3D';
 
 const ROTATE_MS = 6500;
-const field = 'mt-1 w-full rounded-xl border border-[color:var(--a-line)] bg-white/90 px-4 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[color:var(--a)] focus:ring-2 focus:ring-[color:var(--a-line)]';
-
-const daysUntil = (iso: string) => Math.ceil((new Date(`${iso}T00:00:00`).getTime() - new Date(`${todayIso()}T00:00:00`).getTime()) / 86_400_000);
 
 /** A small card in a design's colour, used to pick between designs. */
 function Thumb({ colour, letter }: { colour: string; letter: string }) {
@@ -34,15 +29,18 @@ function Thumb({ colour, letter }: { colour: string; letter: string }) {
 export default function WeddingStudio({ designs }: { designs: Product[] }) {
   const reduce = useReducedMotion();
   const [i, setI] = useState(0);
-  const [one, setOne] = useState('Aarav');
-  const [two, setTwo] = useState('Meera');
+  // Sample details so the open card looks finished; the visitor enters their own on the product page.
   const [date, setDate] = useState('');
-  const [venue, setVenue] = useState('');
-  const [touched, setTouched] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [turned, setTurned] = useState(false);
   const [paused, setPaused] = useState(false);
   const [auto, setAuto] = useState(true);
+  useEffect(() => {
+    // A Saturday about four months from today.
+    const t = new Date(); t.setDate(t.getDate() + 120);
+    t.setDate(t.getDate() + ((6 - t.getDay() + 7) % 7));
+    setDate(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`);
+  }, []);
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Show the next design every few seconds until the visitor takes over (or hovers / focuses inside).
@@ -74,18 +72,9 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
     setAuto(false); setI(k);
     if (focus) radios.current[k]?.focus();
   };
-  const edit = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(e.target.value); setTouched(true); setAuto(false); };
   const flip = () => { setFlipped((f) => !f); setTurned(true); setAuto(false); };
-  const days = date ? daysUntil(date) : null;
 
-  const q = new URLSearchParams();
-  if (touched) {
-    if (one.trim()) q.set('n1', one.trim());
-    if (two.trim()) q.set('n2', two.trim());
-    if (date) q.set('d', date);
-    if (venue.trim()) q.set('v', venue.trim());
-  }
-  const href = `/products/${d.id}${q.toString() ? `?${q}` : ''}#personalise`;
+  const href = `/products/${d.id}#personalise`;
 
   return (
     <section aria-labelledby="studio-h" className="mx-auto max-w-7xl px-4" style={theme}
@@ -109,37 +98,23 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
                 style={{ backgroundImage: `linear-gradient(90deg, ${deep}, ${shade(d.color, luminance(d.color) > 0.5 ? -0.3 : 0.05)}, ${deep})`, backgroundSize: '200% 100%' }}>beautifully</span> printed
             </h2>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-              Type your names and watch the invitation come to life. Pick a design, see it before you buy, and we print it for you.
+              Choose a design, open the card and imagine your names on it. Add your details on the next page, see a live preview, and we print it for you.
             </p>
 
-            <form className="mt-8 max-w-xl rounded-2xl border border-[color:var(--a-line)] bg-white/60 p-5 shadow-sm backdrop-blur" aria-label="Try your names on a card" onSubmit={(e) => e.preventDefault()}>
-              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-900 text-xs text-white">1</span>Who is getting married?
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-medium text-slate-700">First name
-                  <input className={field} value={one} onChange={edit(setOne)} maxLength={40} autoComplete="off" />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">Second name
-                  <input className={field} value={two} onChange={edit(setTwo)} maxLength={40} autoComplete="off" />
-                </label>
-                <label className="block text-sm font-medium text-slate-700">Wedding date <span className="font-normal text-slate-400">(optional)</span>
-                  <input className={field} type="date" min={todayIso()} value={date} onChange={edit(setDate)} />
-                  {days !== null && days >= 0 && (
-                    <span className="mt-1 block text-xs font-normal" style={{ color: 'var(--a)' }}>
-                      {days === 0 ? 'That is today!' : days === 1 ? 'That is tomorrow.' : `${days} days to go.`}
-                    </span>
-                  )}
-                </label>
-                <label className="block text-sm font-medium text-slate-700">Venue <span className="font-normal text-slate-400">(optional)</span>
-                  <input className={field} value={venue} onChange={edit(setVenue)} maxLength={120} placeholder="Hall or hotel, city" autoComplete="off" />
-                </label>
-              </div>
-            </form>
+            <ol className="mt-8 grid max-w-xl gap-4" aria-label="How it works">
+              {([['Pick a design', 'Browse the cards on the right. The whole page takes on the colours of the one you choose.'],
+                 ['Add your details', 'Your names, wedding date and venue, typed on the next page.'],
+                 ['See it, then order', 'A live preview of your card before anything is printed.']] as const).map(([t, text], n) => (
+                <li key={t} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-semibold text-white">{n + 1}</span>
+                  <p className="text-slate-600"><span className="block font-semibold text-slate-900">{t}</span>{text}</p>
+                </li>
+              ))}
+            </ol>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link href={href} className="group inline-flex items-center gap-2 rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
-                Personalise this card · {d.variantLabel ? 'from ' : ''}{rupees(d.price)}
+                Personalise this card
                 <Icon name="back" size={16} className="rotate-180 transition group-hover:translate-x-1" />
               </Link>
               <Link href="/shop?categories=wedding-cards" className="rounded-full border border-slate-300 bg-white/80 px-6 py-3 text-sm font-semibold transition hover:border-[color:var(--a)] hover:text-[color:var(--a)]">
@@ -147,20 +122,13 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
               </Link>
             </div>
 
-            <ul className="mt-8 grid max-w-xl gap-3 text-sm text-slate-600 sm:grid-cols-3">
-              {([['sparkle', 'Live preview before you buy'], ['edit', 'Your names, date and venue'], ['box', 'Printed and delivered']] as const).map(([icon, t]) => (
-                <li key={t} className="flex items-center gap-2">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ color: 'var(--a)', background: 'var(--a-soft)' }}><Icon name={icon} size={16} tint="transparent" /></span>{t}
-                </li>
-              ))}
-            </ul>
           </div>
 
           {/* The card and the design chooser */}
           <div className="flex flex-col items-center">
             <div className="py-4">
-              <WeddingCard3D accent={d.color} one={one} two={two} date={date} venue={venue} flipped={flipped} onFlip={flip} swapKey={d.id}
-                label={`${d.name}: a wedding card for ${one || 'one'} and ${two || 'two'}`} />
+              <WeddingCard3D accent={d.color} one="Aarav" two="Meera" date={date} venue="Rose Garden Palace, Jaipur" flipped={flipped} onFlip={flip} swapKey={d.id}
+                label={`${d.name}: a sample wedding card`} />
             </div>
 
             <div className="mt-5 flex h-9 items-center">
@@ -173,28 +141,25 @@ export default function WeddingStudio({ designs }: { designs: Product[] }) {
 
             <div className="mt-5 w-full max-w-md text-center" aria-live="polite">
               <p className="font-display text-2xl font-semibold text-slate-900">{d.name}</p>
-              <p className="mt-0.5 flex items-center justify-center gap-3 text-sm text-slate-600">
-                <span className="font-semibold tabular-nums text-slate-900">{d.variantLabel ? 'From ' : ''}{rupees(d.price)}</span>
-                {d.reviewCount > 0 && <Stars rating={d.rating} count={d.reviewCount} size={14} />}
-              </p>
+              {d.reviewCount > 0 && <p className="mt-1 flex justify-center text-sm text-slate-600"><Stars rating={d.rating} count={d.reviewCount} size={14} /></p>}
             </div>
 
             <div className="mt-6 w-full max-w-md">
               <p className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-slate-800">
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-900 text-xs text-white">2</span>Pick a design
+                Pick a design
               </p>
               <div className="flex items-center gap-2">
                 <button type="button" aria-label="Previous design" onClick={() => choose(i - 1)}
                   className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-300 bg-white/90 hover:border-[color:var(--a)]"><Icon name="back" size={16} /></button>
                 <div role="radiogroup" aria-label="Choose a design"
-                  className="relative flex min-w-0 flex-1 snap-x gap-3 overflow-x-auto px-2 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="relative flex min-w-0 flex-1 snap-x gap-3 [&>*:first-child]:ml-auto [&>*:last-child]:mr-auto overflow-x-auto px-2 pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   onKeyDown={(e) => {
                     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); choose(i + 1, true); }
                     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); choose(i - 1, true); }
                   }}>
                   {designs.map((x, n) => (
                     <button key={x.id} ref={(el) => { radios.current[n] = el; }} type="button" role="radio" aria-checked={n === i} tabIndex={n === i ? 0 : -1}
-                      aria-label={`${x.name}, ${rupees(x.price)}`} onClick={() => choose(n)}
+                      aria-label={x.name} onClick={() => choose(n)}
                       className={`shrink-0 snap-center rounded-lg p-1 outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--a)] ${n === i ? 'scale-105 bg-white shadow-lg ring-2 ring-slate-900' : 'opacity-80 hover:opacity-100 hover:-translate-y-0.5'}`}>
                       <Thumb colour={x.color} letter={x.name.trim()[0]?.toUpperCase() ?? '·'} />
                     </button>
