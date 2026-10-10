@@ -3,7 +3,8 @@ import Icon from '@/components/Icon';
 import ExhibitCard from '@/components/landing/ExhibitCard';
 import HeroSearch from '@/components/landing/HeroSearch';
 import Reveal from '@/components/landing/Reveal';
-import { fetchOverview, type Overview } from '@/lib/api';
+import WeddingStudio from '@/components/wedding/WeddingStudio';
+import { fetchOverview, fetchProducts, type Overview, type Product } from '@/lib/api';
 
 // Always show the current catalog (products change in the admin area).
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,15 @@ export default async function Home() {
     /* fall through with empty data */
   }
 
+  // Wedding cards for the showcase at the top: personalisable and in stock first, best rated first.
+  let designs: Product[] = [];
+  try {
+    const page = await fetchProducts({ q: '', categories: ['wedding-cards'], colors: [], tags: [], maxPrice: 0, sort: 'rating', minRating: 0, inStock: true }, { limit: 8 });
+    designs = [...page.items].sort((a, b) => Number(b.personalizable) - Number(a.personalizable));
+  } catch {
+    /* the section simply stays hidden */
+  }
+
   const hallData = (slug: string) => overview?.halls.find((h) => h.category === slug);
   const featured = overview?.featured ?? [];
   const suggestions = overview?.popularTags.length ? overview.popularTags : FALLBACK_SUGGESTIONS;
@@ -44,6 +54,10 @@ export default async function Home() {
 
   return (
     <main className="pb-20">
+      {/* ── Wedding cards ────────────────────────────────────────── */}
+      <WeddingStudio designs={designs} />
+      <div className="mt-12" />
+
       {/* ── Entrance ─────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4">
         <div className="grid grid-cols-1 items-center gap-10 rounded-[2rem] border border-orange-100 bg-white px-6 py-12 shadow-xl shadow-fuchsia-900/5 sm:px-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:py-16">
