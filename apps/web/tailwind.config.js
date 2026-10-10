@@ -18,6 +18,7 @@ module.exports = {
       keyframes: {
         float: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-12px)' } },
         shift: { '0%': { backgroundPosition: '0% 50%' }, '100%': { backgroundPosition: '200% 50%' } },
+        sheen: { '0%': { transform: 'translateX(-130%) skewX(-18deg)' }, '55%,100%': { transform: 'translateX(230%) skewX(-18deg)' } },
         petal: {
           '0%': { transform: 'translate3d(0,-10%,0) rotate(0deg)', opacity: '0' },
           '10%': { opacity: '0.7' },
@@ -31,6 +32,8 @@ module.exports = {
       animation: {
         float: 'float 6s ease-in-out infinite',
         shift: 'shift 8s linear infinite',
+        sheen: 'sheen 5.5s ease-in-out infinite',
+        gleam: 'shift 6s linear infinite',
         petal: 'petal 14s linear infinite',
         drift: 'drift 14s ease-in-out infinite',
       },
